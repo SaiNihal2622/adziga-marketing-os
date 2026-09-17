@@ -1,0 +1,870 @@
+// Adziga — Prisma Schema
+// AI-first Advertising & Marketing Operating System
+// Multi-tenant, normalized, structured relational design
+// Note: SQLite provider — enum values stored as String with TS-level constants.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// IDENTITY & MULTI-TENANCY
+// ──────────────────────────────────────────────────────────────────────────
+
+model Organization {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  tier             String   @default("FREE") // FREE | PRO | ZIGA_PLUS
+  industry         String?
+  website          String?
+  logoUrl          String?
+  isAdzigaInternal Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  members         OrgMember[]
+  clients         Client[]
+  strategies      Strategy[]
+  campaigns       Campaign[]
+  creatives       Creative[]
+  audiences       Audience[]
+  leads           Lead[]
+  customers       Customer[]
+  revenue         Revenue[]
+  events          MarketingEvent[]
+  influencers     Influencer[]
+  experiments     Experiment[]
+  reports         Report[]
+  tasks           Task[]
+  requests        ClientRequest[]
+  notifications   Notification[]
+  decisions       DecisionLog[]
+  automations     Automation[]
+  integrations    Integration[]
+  auditLogs       AuditLog[]
+  aiInteractions  AIInteraction[]
+  billingAccount  BillingAccount?
+  invoices        Invoice[]
+  adSpend         AdSpend[]
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  memberships         OrgMember[]
+  assignedTasks       Task[]              @relation("AssignedTasks")
+  createdTasks        Task[]              @relation("CreatedTasks")
+  authoredStrategies  Strategy[]          @relation("Author")
+  approvedStrategies  Strategy[]          @relation("Approver")
+  authoredDecisions   DecisionLog[]       @relation("DecisionAuthor")
+  approvals           Approval[]          @relation("Approver")
+  notifications       Notification[]
+  aiInteractions      AIInteraction[]
+  clientRequests      ClientRequest[]     @relation("RequestSubmitter")
+}
+
+model OrgMember {
+  id      String   @id @default(cuid())
+  role    String
+  userId  String
+  orgId   String
+  joinedAt DateTime @default(now())
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CLIENTS / BUSINESS
+// ──────────────────────────────────────────────────────────────────────────
+
+model Client {
+  id             String   @id @default(cuid())
+  orgId          String
+  businessName   String
+  contactName    String
+  contactEmail   String
+  contactPhone   String?
+  industry       String?
+  websiteUrl     String?
+  city           String?
+  country        String?
+  businessModel  String?
+  monthlyBudget  Float?
+  status         String   @default("ONBOARDING") // ONBOARDING | ACTIVE | PAUSED | CHURNED
+  tier           String   @default("PRO")
+  contractStart  DateTime?
+  contractEnd    DateTime?
+  notes          String?
+  onboardingStep Int      @default(0)
+  onboardingData String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  strategies Strategy[]
+  campaigns  Campaign[]
+  leads      Lead[]
+  customers  Customer[]
+  events     MarketingEvent[]
+  reports    Report[]
+  requests   ClientRequest[]
+  decisions  DecisionLog[]
+  experiments Experiment[]
+  onboarding Onboarding?
+
+  @@index([orgId])
+  @@index([status])
+}
+
+model Onboarding {
+  id              String   @id @default(cuid())
+  clientId        String   @unique
+  step1Business   String?
+  step2Objectives String?
+  step3Audience   String?
+  step4Products   String?
+  step5Budget     String?
+  step6Channels   String?
+  step7BrandAssets String?
+  step8Access     String?
+  step9Strategy   String?
+  step10Approval  String?
+  completedAt     DateTime?
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// STRATEGY — versioned, human-controlled in Phase 0
+// ──────────────────────────────────────────────────────────────────────────
+
+model Strategy {
+  id                String    @id @default(cuid())
+  orgId             String
+  clientId          String?
+  title             String
+  version           Int       @default(1)
+  parentId          String?
+  businessObjective String?
+  targetAudience    String?
+  market            String?
+  offer             String?
+  positioning       String?
+  campaignObjective String?
+  channels          String?
+  budget            Float?
+  timeline          String?
+  creativeStrategy  String?
+  leadStrategy      String?
+  conversionStrategy String?
+  kpis              String?
+  successCriteria   String?
+  risks             String?
+  assumptions       String?
+  status            String    @default("DRAFT") // DRAFT | INTERNAL_REVIEW | CLIENT_APPROVAL | APPROVED | ARCHIVED
+  changeReason      String?
+  authorId          String
+  approverId        String?
+  approvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client   Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  author   User         @relation("Author", fields: [authorId], references: [id])
+  approver User?        @relation("Approver", fields: [approverId], references: [id])
+
+  @@index([orgId])
+  @@index([clientId])
+  @@index([status])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CAMPAIGNS — multi-channel execution
+// ──────────────────────────────────────────────────────────────────────────
+
+model Campaign {
+  id             String    @id @default(cuid())
+  orgId          String
+  clientId       String
+  name           String
+  platform       String    // META | GOOGLE | YOUTUBE | INSTAGRAM | WHATSAPP | LINKEDIN | TWITTER | EMAIL | INFLUENCER | EVENT
+  objective      String
+  budget         Float?
+  spent          Float     @default(0)
+  startDate      DateTime?
+  endDate        DateTime?
+  status         String    @default("DRAFT") // DRAFT | INTERNAL_REVIEW | CLIENT_APPROVAL | READY | ACTIVE | PAUSED | COMPLETED | ARCHIVED
+  health         String?
+  notes          String?
+  impressions    BigInt    @default(0)
+  reach          BigInt    @default(0)
+  clicks         BigInt    @default(0)
+  leads          BigInt    @default(0)
+  qualifiedLeads BigInt    @default(0)
+  customers      BigInt    @default(0)
+  revenue        Float     @default(0)
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  externalId     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  adSets      AdSet[]
+  ads         Ad[]
+  creatives   Creative[]
+  leadEntries Lead[]
+  experiments Experiment[]
+  reports     Report[]
+  decisions   DecisionLog[]
+
+  @@index([orgId])
+  @@index([clientId])
+  @@index([status])
+  @@index([platform])
+}
+
+model AdSet {
+  id          String   @id @default(cuid())
+  campaignId  String
+  name        String
+  audience    String?
+  budget      Float?
+  spent       Float    @default(0)
+  impressions BigInt   @default(0)
+  reach       BigInt   @default(0)
+  clicks      BigInt   @default(0)
+  leads       BigInt   @default(0)
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ads      Ad[]
+}
+
+model Ad {
+  id          String   @id @default(cuid())
+  campaignId  String
+  adSetId     String?
+  name        String
+  format      String?
+  status      String   @default("ACTIVE")
+  impressions BigInt   @default(0)
+  clicks      BigInt   @default(0)
+  spend       Float    @default(0)
+  leads       BigInt   @default(0)
+  ctr         Float    @default(0)
+  cpc         Float    @default(0)
+  creativeId  String?
+  createdAt   DateTime @default(now())
+
+  campaign Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adSet    AdSet?    @relation(fields: [adSetId], references: [id], onDelete: SetNull)
+  creative Creative? @relation(fields: [creativeId], references: [id], onDelete: SetNull)
+}
+
+model Audience {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  size        Int?
+  ageMin      Int?
+  ageMax      Int?
+  locations   String?
+  interests   String?
+  behavior    String?
+  createdAt   DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CREATIVES — the future content intelligence layer
+// ──────────────────────────────────────────────────────────────────────────
+
+model Creative {
+  id           String   @id @default(cuid())
+  orgId        String
+  campaignId   String?
+  name         String
+  format       String   // IMAGE | VIDEO | CAROUSEL | STORY | REEL | TEXT | UGC
+  platform     String
+  hook         String?
+  headline     String?
+  primaryCopy  String?
+  cta          String?
+  creator      String?
+  version      Int      @default(1)
+  audience     String?
+  mediaUrl     String?
+  thumbnailUrl String?
+  impressions  BigInt   @default(0)
+  reach        BigInt   @default(0)
+  spend        Float    @default(0)
+  ctr          Float    @default(0)
+  cpc          Float    @default(0)
+  leads        BigInt   @default(0)
+  cpl          Float    @default(0)
+  conversions  BigInt   @default(0)
+  revenue      Float    @default(0)
+  status       String   @default("DRAFT") // DRAFT | REVIEW | APPROVED | ACTIVE | PAUSED | ARCHIVED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaign Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  ads      Ad[]
+
+  @@index([orgId])
+  @@index([campaignId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// LEADS / CRM — full lifecycle
+// ──────────────────────────────────────────────────────────────────────────
+
+model Lead {
+  id               String    @id @default(cuid())
+  orgId            String
+  clientId         String
+  campaignId       String?
+  creativeId       String?
+  influencerId     String?
+  eventId          String?
+  name             String?
+  email            String?
+  phone            String?
+  city             String?
+  source           String    // META_AD | GOOGLE_AD | ORGANIC | REFERRAL | INFLUENCER | EVENT | WHATSAPP | EMAIL | DIRECT
+  utmSource        String?
+  utmMedium        String?
+  utmCampaign      String?
+  utmContent       String?
+  clickId          String?
+  landingPage      String?
+  qualificationData String?
+  score            Int       @default(0)
+  status           String    @default("NEW") // NEW | CONTACTED | QUALIFIED | MEETING_SCHEDULED | PROPOSAL | WON | LOST
+  ownerId          String?
+  outcome          String?
+  revenue          Float     @default(0)
+  followUps        String?
+  lastContactAt    DateTime?
+  wonAt            DateTime?
+  lostAt           DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  org        Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client     Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaign   Campaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  influencer Influencer?    @relation(fields: [influencerId], references: [id], onDelete: SetNull)
+  event      MarketingEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  customer   Customer?
+
+  @@index([orgId])
+  @@index([clientId])
+  @@index([status])
+  @@index([source])
+  @@index([campaignId])
+}
+
+model Customer {
+  id         String   @id @default(cuid())
+  orgId      String
+  clientId   String
+  leadId     String?  @unique
+  name       String
+  email      String?
+  phone      String?
+  revenue    Float    @default(0)
+  acquiredAt DateTime @default(now())
+  notes      String?
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  lead   Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+}
+
+model Revenue {
+  id         String   @id @default(cuid())
+  orgId      String
+  clientId   String?
+  campaignId String?
+  amount     Float
+  currency   String   @default("INR")
+  source     String?
+  recordedAt DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([recordedAt])
+}
+
+model AdSpend {
+  id         String   @id @default(cuid())
+  orgId      String
+  campaignId String?
+  amount     Float
+  currency   String   @default("INR")
+  date       DateTime @default(now())
+  platform   String
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([date])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// EVENTS — online & offline marketing campaigns
+// ──────────────────────────────────────────────────────────────────────────
+
+model MarketingEvent {
+  id               String   @id @default(cuid())
+  orgId            String
+  clientId         String?
+  name             String
+  type             String   // WEBINAR | WORKSHOP | ROUNDTABLE | INVESTOR_BRIEFING | PRIVATE_BRIEFING | OFFLINE_EVENT | CONFERENCE
+  city             String?
+  venue            String?
+  isOnline         Boolean  @default(false)
+  startAt          DateTime
+  endAt            DateTime?
+  capacity         Int?
+  registrationLimit Int?
+  status           String   @default("PLANNED") // PLANNED | REGISTRATION_OPEN | REGISTRATION_CLOSED | LIVE | COMPLETED | CANCELLED
+  registrations    Int      @default(0)
+  attended         Int      @default(0)
+  qualified        Int      @default(0)
+  consultations    Int      @default(0)
+  conversions      Int      @default(0)
+  revenue          Float    @default(0)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  org            Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client         Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  registrations2 Registration[]
+  leads          Lead[]
+
+  @@index([orgId])
+  @@index([status])
+}
+
+model Registration {
+  id            String   @id @default(cuid())
+  eventId       String
+  name          String
+  email         String?
+  phone         String?
+  source        String?
+  utmSource     String?
+  utmContent    String?
+  qualified     Boolean  @default(false)
+  attended      Boolean  @default(false)
+  consultBooked Boolean  @default(false)
+  converted     Boolean  @default(false)
+  revenue       Float    @default(0)
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  event MarketingEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// INFLUENCERS — creator-based campaigns
+// ──────────────────────────────────────────────────────────────────────────
+
+model Influencer {
+  id             String   @id @default(cuid())
+  orgId          String
+  name           String
+  handle         String
+  platform       String   // INSTAGRAM | YOUTUBE | LINKEDIN | TWITTER | TIKTOK | OTHER
+  niche          String?
+  audienceSize   Int?
+  audienceGeo    String?
+  contractValue  Float?
+  feeType        String?
+  trackingToken  String   @unique @default(cuid())
+  postsDelivered Int      @default(0)
+  leadsCount     Int      @default(0)
+  qualifiedLeads Int      @default(0)
+  conversions    Int      @default(0)
+  revenue        Float    @default(0)
+  notes          String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leadEntries Lead[]
+
+  @@index([orgId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// EXPERIMENTS — hypothesis-driven A/B infrastructure
+// ──────────────────────────────────────────────────────────────────────────
+
+model Experiment {
+  id              String    @id @default(cuid())
+  orgId           String
+  clientId        String?
+  campaignId      String?
+  title           String
+  hypothesis      String
+  variable        String
+  control         String
+  treatment       String
+  audience        String?
+  budget          Float?
+  durationDays    Int       @default(14)
+  kpi             String
+  expectedResult  String?
+  actualResult    String?
+  conclusion      String?
+  status          String    @default("PLANNED") // PLANNED | RUNNING | COMPLETED | CANCELLED
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client   Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  campaign Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([status])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// DECISION LOG — strategy intelligence foundation (spec §32)
+// ──────────────────────────────────────────────────────────────────────────
+
+model DecisionLog {
+  id              String    @id @default(cuid())
+  orgId           String
+  clientId        String?
+  campaignId      String?
+  decisionType    String    // BUDGET_CHANGE | CREATIVE_CHANGE | AUDIENCE_CHANGE | CHANNEL_CHANGE | PAUSE_CAMPAIGN | LAUNCH_CAMPAIGN | SCALE_CAMPAIGN | STRATEGY_UPDATE | EXPERIMENT | OTHER
+  decision        String
+  reason          String
+  hypothesis      String?
+  expectedOutcome String?
+  actualOutcome   String?
+  evaluation      String?
+  authorId        String
+  approvedById    String?
+  executedAt      DateTime?
+  evaluatedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client   Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  campaign Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  author   User         @relation("DecisionAuthor", fields: [authorId], references: [id])
+
+  @@index([orgId])
+  @@index([decisionType])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// APPROVAL WORKFLOWS (spec §29)
+// ──────────────────────────────────────────────────────────────────────────
+
+model Approval {
+  id          String    @id @default(cuid())
+  entityType  String
+  entityId    String
+  approverId  String?
+  status      String    @default("pending") // pending | approved | rejected
+  notes       String?
+  requestedAt DateTime  @default(now())
+  decidedAt   DateTime?
+
+  approver User? @relation("Approver", fields: [approverId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([status])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// REPORTS — client-facing reports
+// ──────────────────────────────────────────────────────────────────────────
+
+model Report {
+  id                  String    @id @default(cuid())
+  orgId               String
+  clientId            String
+  campaignId          String?
+  title               String
+  periodStart         DateTime
+  periodEnd           DateTime
+  executiveSummary    String?
+  performance         String?
+  campaignAnalysis    String?
+  funnel              String?
+  leadQuality         String?
+  creativePerformance String?
+  recommendations     String?
+  nextActions         String?
+  status              String    @default("DRAFT") // DRAFT | PUBLISHED | ARCHIVED
+  generatedByAI       Boolean   @default(false)
+  publishedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client   Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaign Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([clientId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CLIENT REQUEST SYSTEM (spec §24)
+// ──────────────────────────────────────────────────────────────────────────
+
+model ClientRequest {
+  id          String    @id @default(cuid())
+  orgId       String
+  clientId    String
+  submitterId String
+  title       String
+  description String
+  category    String    // CAMPAIGN_CHANGE | BUDGET | CREATIVE | REPORTING | MEETING | STRATEGY | OTHER
+  priority    String    @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  status      String    @default("SUBMITTED") // SUBMITTED | ACKNOWLEDGED | ASSIGNED | IN_PROGRESS | WAITING_CLIENT | RESOLVED | CLOSED
+  assigneeId  String?
+  resolution  String?
+  comments    String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client    Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  submitter User         @relation("RequestSubmitter", fields: [submitterId], references: [id])
+
+  @@index([orgId])
+  @@index([status])
+  @@index([priority])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// TASKS — internal ops work
+// ──────────────────────────────────────────────────────────────────────────
+
+model Task {
+  id          String    @id @default(cuid())
+  orgId       String
+  title       String
+  description String?
+  status      String    @default("TODO") // TODO | IN_PROGRESS | BLOCKED | DONE
+  priority    String    @default("MEDIUM")
+  dueDate     DateTime?
+  creatorId   String
+  assigneeId  String?
+  clientId    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  creator  User         @relation("CreatedTasks", fields: [creatorId], references: [id])
+  assignee User?        @relation("AssignedTasks", fields: [assigneeId], references: [id])
+
+  @@index([orgId])
+  @@index([status])
+  @@index([assigneeId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// NOTIFICATIONS (spec §28)
+// ──────────────────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String
+  type      String
+  title     String
+  message   String
+  link      String?
+  read      Boolean  @default(false)
+  channel   String?
+  createdAt DateTime @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// AUTOMATIONS (spec §7)
+// ──────────────────────────────────────────────────────────────────────────
+
+model Automation {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  description String?
+  trigger     String
+  conditions  String
+  actions     String
+  enabled     Boolean  @default(true)
+  runsCount   Int      @default(0)
+  lastRunAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org  Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  runs AutomationRun[]
+}
+
+model AutomationRun {
+  id           String   @id @default(cuid())
+  automationId String
+  status       String
+  log          String?
+  triggeredAt  DateTime @default(now())
+  durationMs   Int?
+
+  automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// INTEGRATIONS (spec §30)
+// ──────────────────────────────────────────────────────────────────────────
+
+model Integration {
+  id           String    @id @default(cuid())
+  orgId        String
+  provider     String
+  status       String    @default("DISABLED") // HEALTHY | DEGRADED | FAILED | DISABLED
+  config       String?
+  lastSyncAt   DateTime?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, provider])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// AI INTERACTIONS / ACTIONS (spec §34, §37)
+// ──────────────────────────────────────────────────────────────────────────
+
+model AIInteraction {
+  id            String    @id @default(cuid())
+  orgId         String
+  userId        String
+  mode          String    @default("ASSISTANT") // ASSISTANT | RECOMMEND | AUTOMATE
+  prompt        String
+  context       String?
+  response      String
+  model         String
+  promptVersion String?
+  latencyMs     Int?
+  tokensIn      Int?
+  tokensOut     Int?
+  approvalId    String?
+  executedAt    DateTime?
+  approvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// AUDIT LOG (spec §37)
+// ──────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  orgId      String
+  userId     String?
+  action     String
+  entityType String?
+  entityId   String?
+  before     String?
+  after      String?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([action])
+  @@index([entityType, entityId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// BILLING (spec §38)
+// ──────────────────────────────────────────────────────────────────────────
+
+model BillingAccount {
+  id              String   @id @default(cuid())
+  orgId           String   @unique
+  plan            String   @default("FREE")
+  monthlyFee      Float    @default(0)
+  usageBasedFee   Float    @default(0)
+  automationFee   Float    @default(0)
+  currency        String   @default("INR")
+  billingEmail    String?
+  billingCycleDay Int      @default(1)
+  notes           String?
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id          String    @id @default(cuid())
+  orgId       String
+  number      String    @unique
+  status      String    @default("DRAFT") // DRAFT | SENT | PAID | OVERDUE | CANCELLED
+  amount      Float
+  currency    String    @default("INR")
+  periodStart DateTime
+  periodEnd   DateTime
+  issuedAt    DateTime  @default(now())
+  paidAt      DateTime?
+  lineItems   String?
+  notes       String?
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --border: #e5e8ee;
+  --text: #0d1015;
+  --muted: #525d72;
+  --accent: #243ff0;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+}
+
+.dark {
+  --bg: #0b0e13;
+  --panel: #14181f;
+  --border: #232936;
+  --text: #e6e8ec;
+  --muted: #8b94a7;
+  --accent: #5a85ff;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+
+body {
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  border-color: var(--border);
+}
+
+/* Layout primitives */
+.card {
+  @apply bg-white border border-ink-200 rounded-xl shadow-soft;
+}
+.dark .card {
+  @apply bg-ink-900 border-ink-800;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors border border-transparent;
+}
+.btn-primary {
+  @apply bg-brand-600 text-white hover:bg-brand-700;
+}
+.btn-secondary {
+  @apply bg-ink-100 text-ink-900 hover:bg-ink-200 border-ink-200;
+}
+.dark .btn-secondary {
+  @apply bg-ink-800 text-ink-100 hover:bg-ink-700 border-ink-700;
+}
+.btn-ghost {
+  @apply text-ink-700 hover:bg-ink-100;
+}
+.dark .btn-ghost {
+  @apply text-ink-200 hover:bg-ink-800;
+}
+.btn-danger {
+  @apply bg-danger-500 text-white hover:bg-danger-600;
+}
+.btn-sm {
+  @apply px-2 py-1 text-xs rounded-md;
+}
+
+.input {
+  @apply w-full px-3 py-2 rounded-lg border border-ink-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500;
+}
+.dark .input {
+  @apply bg-ink-900 border-ink-700 text-ink-100;
+}
+
+.label {
+  @apply text-xs font-medium text-ink-600 mb-1 block;
+}
+.dark .label {
+  @apply text-ink-300;
+}
+
+.badge {
+  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium;
+}
+.badge-success { @apply bg-emerald-50 text-emerald-700 border border-emerald-200; }
+.dark .badge-success { @apply bg-emerald-900/30 text-emerald-300 border-emerald-800; }
+.badge-warning { @apply bg-amber-50 text-amber-700 border border-amber-200; }
+.dark .badge-warning { @apply bg-amber-900/30 text-amber-300 border-amber-800; }
+.badge-danger  { @apply bg-rose-50 text-rose-700 border border-rose-200; }
+.dark .badge-danger  { @apply bg-rose-900/30 text-rose-300 border-rose-800; }
+.badge-neutral { @apply bg-ink-100 text-ink-700 border border-ink-200; }
+.dark .badge-neutral { @apply bg-ink-800 text-ink-200 border-ink-700; }
+.badge-brand   { @apply bg-brand-50 text-brand-700 border border-brand-200; }
+.dark .badge-brand   { @apply bg-brand-900/30 text-brand-300 border-brand-800; }
+.badge-accent  { @apply bg-accent-50 text-accent-600 border border-accent-200; }
+
+.table {
+  @apply w-full text-sm;
+}
+.table thead th {
+  @apply text-left text-[11px] uppercase tracking-wide text-ink-500 font-semibold px-3 py-2 border-b border-ink-200 bg-ink-50;
+}
+.dark .table thead th {
+  @apply bg-ink-900/60 text-ink-400 border-ink-800;
+}
+.table tbody td {
+  @apply px-3 py-3 border-b border-ink-100;
+}
+.dark .table tbody td {
+  @apply border-ink-800;
+}
+.table tbody tr:hover {
+  @apply bg-ink-50;
+}
+.dark .table tbody tr:hover {
+  @apply bg-ink-900/40;
+}
+
+.kpi {
+  @apply card p-5 flex flex-col gap-1;
+}
+.kpi-label {
+  @apply text-[11px] uppercase tracking-wide text-ink-500 font-semibold;
+}
+.kpi-value {
+  @apply text-2xl font-semibold mt-1;
+}
+.kpi-trend {
+  @apply text-xs text-ink-500 mt-1;
+}
+
+.scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+.dark .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
+
+/* Auth-gate animation */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fade-in 0.25s ease-out; }
+
+/* "Marketing Command Center" decorative grid */
+.bg-grid {
+  background-image: linear-gradient(rgba(15,23,42,0.04) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(15,23,42,0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.dark .bg-grid {
+  background-image: linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+}
+
+.text-mono {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.divider {
+  @apply h-px bg-ink-200 my-4;
+}
+.dark .divider {
+  @apply bg-ink-800;
+}
