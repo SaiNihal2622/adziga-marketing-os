@@ -1,5 +1,5 @@
 import { LoginForm } from "./login-form";
-import { GoogleOAuthButton } from "./google-button";
+import { MagicLinkButton } from "./magic-link-button";
 import Link from "next/link";
 
 export const metadata = { title: "Sign in" };
@@ -93,7 +93,7 @@ export default function LoginPage({ searchParams }: { searchParams: { verify?: s
               </div>
             </div>
 
-            <GoogleOAuthButton />
+            <MagicLinkButton callbackUrl="/app" />
 
             <div className="text-center text-[11px] text-ink-400 pt-4 hairline-t">
               Demo logins (dev seed):<br />

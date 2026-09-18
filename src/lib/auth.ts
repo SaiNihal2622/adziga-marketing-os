@@ -28,11 +28,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        magicLinkToken: { label: "Magic link token", type: "text" }
       },
       async authorize(creds) {
         const email = String(creds?.email ?? "").toLowerCase().trim();
         const password = String(creds?.password ?? "");
+        const magicLinkToken = String(creds?.magicLinkToken ?? "");
+
+        // Magic-link path: validate one-time token, consume it, return user
+        if (magicLinkToken) {
+          const link = await prisma.magicLink.findUnique({ where: { token: magicLinkToken } });
+          if (!link) return null;
+          if (link.usedAt) return null;
+          if (link.expiresAt < new Date()) return null;
+          if (link.email.toLowerCase() !== email) return null;
+
+          // Atomic consume
+          await prisma.magicLink.update({
+            where: { id: link.id, usedAt: null },
+            data: { usedAt: new Date() }
+          });
+
+          const user = await prisma.user.findUnique({ where: { email } });
+          if (!user) return null;
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name ?? undefined
+          } as any;
+        }
+
+        // Password path
         if (!email || !password) return null;
         const user = await prisma.user.findUnique({
           where: { email },

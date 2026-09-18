@@ -1081,6 +1081,20 @@ model EmailVerification {
   @@index([userId])
 }
 
+model MagicLink {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+}
+
 model PasswordReset {
   id        String   @id @default(cuid())
   userId    String

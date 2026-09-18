@@ -109,6 +109,19 @@ const TEMPLATES: Record<string, (vars: any) => Rendered> = {
       <a href="${v.appUrl}/app/campaigns/${v.campaignId}" class="btn">View campaign</a>
     `),
     text: `Campaign ${v.campaignName}: ${v.reason}`
+  }),
+
+  magic_link: (v) => ({
+    subject: `Sign in to Adziga`,
+    html: wrap("Sign in", `
+      <h1>Sign in to Adziga</h1>
+      <p>Click the button below to sign in. This link expires in 15 minutes and can only be used once.</p>
+      <a href="${v.signInUrl}" class="btn">Sign in to Adziga</a>
+      <p class="muted">If the button doesn't work, paste this link in your browser:</p>
+      <div class="code">${v.signInUrl}</div>
+      <p class="muted">If you didn't request this, you can safely ignore this email.</p>
+    `),
+    text: `Sign in to Adziga: ${v.signInUrl} (expires in 15 minutes)`
   })
 };
 
