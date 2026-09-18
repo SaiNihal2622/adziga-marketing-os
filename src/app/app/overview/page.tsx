@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/session";
-import { fmtINR, fmtNum, fmtPct, ctr, cpl, roas } from "@/lib/format";
+import { fmtINR, fmtNum, fmtPct } from "@/lib/format";
 import { isOperatorRole } from "./_lib";
 import { PageHeader } from "../_components/page-header";
-import { StatusPill } from "../_components/widgets";
 import { Sparkline, LineChart, BarChart, DonutChart, FunnelChart } from "../_components/charts";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +16,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
 
   const operator = isOperatorRole(session.role);
 
-  const [campaigns, leads, customers, requests, tasks, integrations, recentDecisions, activeClients, allCampaigns] = await Promise.all([
+  const [campaigns, leads, customers, requests, tasks, integrations, recentDecisions, activeClients, adSpends] = await Promise.all([
     prisma.campaign.findMany({ where: { orgId: session.orgId, ...(operator ? {} : { client: { orgId: session.orgId } }) } }),
     prisma.lead.findMany({ where: { orgId: session.orgId, createdAt: { gte: since } } }),
     prisma.customer.findMany({ where: { orgId: session.orgId, acquiredAt: { gte: since } } }),
@@ -26,7 +25,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
     prisma.integration.findMany({ where: { orgId: session.orgId } }),
     prisma.decisionLog.findMany({ where: { orgId: session.orgId }, orderBy: { createdAt: "desc" }, take: 5 }),
     prisma.client.count({ where: { orgId: session.orgId, status: "ACTIVE" } }),
-    prisma.campaign.findMany({ where: { orgId: session.orgId } })
+    prisma.adSpend.findMany({ where: { orgId: session.orgId, date: { gte: new Date(Date.now() - 14 * 86400_000) } } })
   ]);
 
   const totalSpend = campaigns.reduce((s, c) => s + c.spent, 0);
@@ -38,6 +37,15 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
   const overallCpl = totalLeads > 0 ? totalSpend / totalLeads : 0;
   const overallRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
   const overallConv = totalLeads > 0 ? (totalCustomers / totalLeads) * 100 : 0;
+  const activeCampaigns = campaigns.filter((c) => c.status === "ACTIVE").length;
+  const openRequests = requests.filter((r) => !["RESOLVED", "CLOSED"].includes(r.status)).length;
+
+  // Period comparison (last period vs current period)
+  const prevSince = new Date(Date.now() - 2 * days * 86400_000);
+  const prevLeads = await prisma.lead.count({
+    where: { orgId: session.orgId, createdAt: { gte: prevSince, lt: since } }
+  });
+  const leadsDelta = prevLeads > 0 ? ((totalLeads - prevLeads) / prevLeads) * 100 : 0;
 
   // Funnel
   const funnel = [
@@ -58,45 +66,37 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
       status: c.status,
       spend: c.spent,
       leads: Number(c.leads),
-      cpl: c.spent / Number(c.leads)
+      cpl: c.spent / Number(c.leads),
+      health: c.health
     }))
     .sort((a, b) => a.cpl - b.cpl)
     .slice(0, 5);
 
-  // Daily leads chart (last 14 days)
+  // Daily leads + spend charts (last 14 days)
   const daily = new Map<string, number>();
   for (let i = 13; i >= 0; i--) daily.set(new Date(Date.now() - i * 86400_000).toISOString().slice(0, 10), 0);
   for (const l of leads) {
     const d = l.createdAt.toISOString().slice(0, 10);
     if (daily.has(d)) daily.set(d, daily.get(d)! + 1);
   }
-  const chartData = Array.from(daily.entries()).map(([d, v]) => ({ label: d.slice(5), value: v }));
-  const leadValues = chartData.map((d) => d.value);
+  const xLabels = Array.from(daily.keys()).map((d) => d.slice(5));
+  const leadValues = Array.from(daily.values());
 
-  // Daily spend chart (last 14 days)
   const dailySpend = new Map<string, number>();
   for (let i = 13; i >= 0; i--) dailySpend.set(new Date(Date.now() - i * 86400_000).toISOString().slice(0, 10), 0);
-  // Use AdSpend records
-  const adSpends = await prisma.adSpend.findMany({ where: { orgId: session.orgId, date: { gte: new Date(Date.now() - 14 * 86400_000) } } });
   for (const s of adSpends) {
     const d = s.date.toISOString().slice(0, 10);
     if (dailySpend.has(d)) dailySpend.set(d, dailySpend.get(d)! + s.amount);
   }
-  const spendValues = Array.from(dailySpend.entries()).map(([d, v]) => ({ label: d.slice(5), value: v }));
-  const spendSparkValues = Array.from(dailySpend.values());
+  const spendValues = Array.from(dailySpend.values());
 
-  // Alerts
-  const alerts = campaigns
-    .filter((c) => c.health === "At Risk" || c.health === "Critical" || (c.spent > 0 && c.budget && c.spent / c.budget > 0.95))
-    .map((c) => ({
-      kind: "warning" as const,
-      title: `${c.name} - needs attention`,
-      desc: c.health === "Critical" ? "Critical: campaign performance degraded" : c.spent / (c.budget || 1) > 0.95 ? "Budget over 95% utilized" : "Performance below expected"
-    }));
+  // Line chart data: leads + scaled spend
+  const lineSeries = [
+    { name: "Leads", color: "#365efb", data: leadValues },
+    { name: "Spend (₹100s)", color: "#d946ef", data: spendValues.map((v) => Math.round(v / 100)) }
+  ];
 
-  const failedIntegrations = integrations.filter((i) => i.status === "FAILED" || i.status === "DEGRADED");
-
-  // Donut: leads by source
+  // Source donut
   const sourceCounts: Record<string, number> = {};
   for (const l of leads) sourceCounts[l.source] = (sourceCounts[l.source] ?? 0) + 1;
   const sourceDonut = Object.entries(sourceCounts).map(([s, v], i) => ({
@@ -105,7 +105,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
     color: ["#365efb", "#d946ef", "#10b981", "#f59e0b", "#06b6d4", "#ec4899", "#8b5cf6"][i % 7]
   }));
 
-  // Bar: platforms by spend
+  // Platform bars
   const platformSpend: Record<string, number> = {};
   for (const c of campaigns) platformSpend[c.platform] = (platformSpend[c.platform] ?? 0) + c.spent;
   const platformBars = Object.entries(platformSpend)
@@ -113,77 +113,124 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
     .slice(0, 6)
     .map(([p, v]) => ({ label: p, value: v }));
 
-  // X-axis labels for line chart
-  const xLabels = Array.from(daily.keys()).map((d) => d.slice(5));
+  // Alerts
+  const alerts = campaigns
+    .filter((c) => c.health === "At Risk" || c.health === "Critical" || (c.spent > 0 && c.budget && c.spent / c.budget > 0.95))
+    .slice(0, 3);
+  const failedIntegrations = integrations.filter((i) => i.status === "FAILED" || i.status === "DEGRADED").slice(0, 3);
 
-  // Line chart data: leads + spend
-  const lineSeries = [
-    { name: "Leads", color: "#365efb", data: leadValues },
-    { name: "Spend", color: "#d946ef", data: spendValues.map((d) => Math.round(d.value / 100)) } // scaled
-  ];
+  // AI insights (deterministic from data)
+  const insights: Array<{ kind: "warning" | "positive" | "neutral"; text: string }> = [];
+  const cplByPlatform: Record<string, number[]> = {};
+  for (const c of campaigns) {
+    if (!cplByPlatform[c.platform]) cplByPlatform[c.platform] = [];
+    if (Number(c.leads) > 0) cplByPlatform[c.platform].push(c.spent / Number(c.leads));
+  }
+  let bestChannel = "";
+  let bestCpl = Infinity;
+  let worstChannel = "";
+  let worstCpl = 0;
+  for (const [p, cpls] of Object.entries(cplByPlatform)) {
+    const avg = cpls.reduce((a, b) => a + b, 0) / cpls.length;
+    if (avg < bestCpl) { bestCpl = avg; bestChannel = p; }
+    if (avg > worstCpl) { worstCpl = avg; worstChannel = p; }
+  }
+  if (bestChannel && worstChannel && bestChannel !== worstChannel) {
+    insights.push({
+      kind: "positive",
+      text: `${bestChannel} leads are ${Math.round((worstCpl - bestCpl) / worstCpl * 100)}% cheaper than ${worstChannel}. Consider shifting budget.`
+    });
+  }
+  if (activeCampaigns > 0) {
+    const atRiskCount = campaigns.filter((c) => c.health === "At Risk" || c.health === "Critical").length;
+    if (atRiskCount > 0) {
+      insights.push({
+        kind: "warning",
+        text: `${atRiskCount} campaign${atRiskCount > 1 ? "s" : ""} ${atRiskCount > 1 ? "are" : "is"} below target. Review creatives before pausing.`
+      });
+    }
+  }
+  if (overallConv > 0 && overallConv < 5) {
+    insights.push({
+      kind: "neutral",
+      text: `Lead-to-customer conversion is ${fmtPct(overallConv)}. Industry avg for your segment is 4-7%.`
+    });
+  } else if (overallConv >= 5) {
+    insights.push({
+      kind: "positive",
+      text: `Conversion rate of ${fmtPct(overallConv)} is above the industry average. Your targeting is working.`
+    });
+  }
 
   return (
     <div className="space-y-6 fade-in">
+      {/* Header */}
       <PageHeader
         title="Overview"
-        subtitle="Marketing command center - what is happening across every channel right now."
+        subtitle={`Marketing command center · last ${days} days`}
         right={
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-ink-500">Range:</span>
-            {[["7", "7d"], ["30", "30d"], ["90", "90d"]].map(([k, l]) => (
-              <Link
-                key={k}
-                href={`/app/overview?range=${k}`}
-                className={`px-2 py-1 rounded ${days === Number(k) ? "bg-brand-600 text-white" : "bg-ink-100 hover:bg-ink-200 text-ink-700"}`}
-              >
-                {l}
-              </Link>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-md border border-ink-200 bg-white p-0.5 text-xs">
+              {[["7", "7d"], ["30", "30d"], ["90", "90d"]].map(([k, l]) => (
+                <Link
+                  key={k}
+                  href={`/app/overview?range=${k}`}
+                  className={`px-2.5 py-1 rounded transition-colors tabular-nums ${days === Number(k) ? "bg-ink-900 text-white" : "text-ink-600 hover:text-ink-900"}`}
+                >
+                  {l}
+                </Link>
+              ))}
+            </div>
+            <Link href="/app/analytics" className="btn btn-secondary btn-sm hidden md:inline-flex">Export</Link>
           </div>
         }
       />
 
-      {/* KPIs with sparklines */}
+      {/* 8 KPI cards in 4-col grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard
           label="Ad Spend"
           value={fmtINR(totalSpend)}
-          sub={`${campaigns.filter((c) => c.status === "ACTIVE").length} active campaigns`}
-          sparkData={spendSparkValues}
-          trend="neutral"
+          sub={`${activeCampaigns} active campaigns`}
+          sparkData={spendValues}
+          sparkColor="#d946ef"
         />
         <KpiCard
           label="Leads"
           value={fmtNum(totalLeads)}
           sub={`${qualifiedLeads} qualified`}
+          delta={leadsDelta}
           sparkData={leadValues}
-          trend="up-good"
+          sparkColor="#365efb"
         />
         <KpiCard
-          label="CPL"
+          label="Cost per Lead"
           value={fmtINR(overallCpl)}
-          sub="Cost per lead"
-          sparkData={spendValues.map((d, i) => leadValues[i] > 0 ? Math.round(d.value / leadValues[i]) : 0)}
-          trend="down-good"
+          sub="Blended CPL"
+          sparkData={leadValues.map((_, i) => spendValues[i] && leadValues[i] ? Math.round(spendValues[i] / leadValues[i]) : 0)}
+          sparkColor="#f59e0b"
+          invertTrend
+        />
+        <KpiCard
+          label="ROAS"
+          value={`${overallRoas.toFixed(2)}x`}
+          sub={fmtINR(totalRevenue) + " revenue"}
+          sparkData={spendValues.map((v) => Math.round(v * overallRoas))}
+          sparkColor="#10b981"
         />
         <KpiCard
           label="Customers"
           value={fmtNum(totalCustomers)}
           sub={`CAC ${fmtINR(cac)}`}
-          sparkData={leadValues.map((_, i) => Math.round(leadValues[i] * (overallConv / 100)))}
-          trend="up-good"
+          sparkData={leadValues.map((v) => Math.round(v * (overallConv / 100)))}
+          sparkColor="#10b981"
         />
         <KpiCard
-          label="Revenue"
-          value={fmtINR(totalRevenue)}
-          sub={`ROAS ${overallRoas.toFixed(2)}x`}
-          sparkData={spendValues.map((d) => Math.round(d.value * overallRoas))}
-          trend="up-good"
-        />
-        <KpiCard
-          label="Conv. rate"
+          label="Conv. Rate"
           value={fmtPct(overallConv)}
-          sub="Lead to Customer"
+          sub="Lead → Customer"
+          sparkData={leadValues.map((v, i) => Math.round(v * (overallConv / 100)))}
+          sparkColor="#365efb"
         />
         <KpiCard
           label="Active Clients"
@@ -192,145 +239,198 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
         />
         <KpiCard
           label="Open Requests"
-          value={fmtNum(requests.filter((r) => !["RESOLVED", "CLOSED"].includes(r.status)).length)}
+          value={fmtNum(openRequests)}
           sub="Pending action"
         />
       </div>
 
-      {/* Alerts + integrations */}
+      {/* Alerts strip */}
       {(alerts.length > 0 || failedIntegrations.length > 0) && (
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 gap-3">
           {alerts.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-ink-700">Campaign health alerts</h3>
-              {alerts.map((a, i) => (
-                <div key={i} className="card p-4 border-l-4 border-amber-500">
-                  <div className="font-semibold text-sm">{a.title}</div>
-                  <div className="text-sm text-ink-600 mt-1">{a.desc}</div>
-                </div>
-              ))}
+            <div className="card-v0 p-4 border-l-4 border-amber-500">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="size-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 text-xs font-semibold tabular-nums">{alerts.length}</div>
+                <div className="text-xs uppercase tracking-wide font-semibold text-ink-700">Campaign alerts</div>
+              </div>
+              <ul className="space-y-1.5">
+                {alerts.map((c, i) => (
+                  <li key={i} className="text-sm">
+                    <Link href={`/app/campaigns/${c.id}`} className="font-medium hover:text-brand-600 transition-colors">{c.name}</Link>
+                    <span className="text-ink-500"> — {c.health === "Critical" ? "critical performance drop" : c.spent / (c.budget || 1) > 0.95 ? "budget 95%+ used" : "below expected"}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           {failedIntegrations.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-ink-700">Integration status</h3>
-              {failedIntegrations.map((i) => (
-                <div key={i.id} className="card p-4 border-l-4 border-amber-500">
-                  <div className="font-semibold">{i.provider}</div>
-                  <div className="text-sm text-ink-600 mt-1">{i.errorMessage ?? "Performance degraded - investigate."}</div>
-                </div>
-              ))}
+            <div className="card-v0 p-4 border-l-4 border-rose-500">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="size-6 rounded-full bg-rose-100 flex items-center justify-center text-rose-700 text-xs font-semibold tabular-nums">{failedIntegrations.length}</div>
+                <div className="text-xs uppercase tracking-wide font-semibold text-ink-700">Integration issues</div>
+              </div>
+              <ul className="space-y-1.5">
+                {failedIntegrations.map((i) => (
+                  <li key={i.id} className="text-sm">
+                    <span className="font-medium">{i.provider}</span>
+                    <span className="text-ink-500"> — {i.errorMessage ?? "degraded"}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
       )}
 
-      {/* Trends chart */}
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-ink-700">Daily leads vs spend (last 14 days)</h3>
-          <Link href="/app/analytics" className="text-xs text-brand-600 hover:underline">Open analytics</Link>
+      {/* Performance trend */}
+      <div className="card-v0 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-semibold tracking-tight">Performance trend</h3>
+            <p className="text-xs text-ink-500 mt-0.5">Daily leads and spend — last 14 days</p>
+          </div>
+          <Link href="/app/analytics" className="text-xs text-brand-600 hover:underline">Open analytics →</Link>
         </div>
-        <LineChart series={lineSeries} xLabels={xLabels} height={200} yFormat={(v: number) => fmtNum(v)} />
+        <LineChart series={lineSeries} xLabels={xLabels} height={220} yFormat={(v: number) => fmtNum(v)} />
       </div>
 
+      {/* Funnel + Sources + Platforms */}
       <div className="grid lg:grid-cols-3 gap-4">
-        {/* Funnel */}
-        <div className="card p-5">
-          <h3 className="text-sm font-semibold text-ink-700 mb-4">Acquisition funnel</h3>
+        <div className="card-v0 p-5">
+          <div className="mb-4">
+            <h3 className="font-semibold tracking-tight">Acquisition funnel</h3>
+            <p className="text-xs text-ink-500 mt-0.5">Impressions to customers</p>
+          </div>
           <FunnelChart stages={funnel} />
         </div>
 
-        {/* Source donut */}
-        <div className="card p-5">
-          <h3 className="text-sm font-semibold text-ink-700 mb-4">Leads by source</h3>
-          {sourceDonut.length > 0 ? <DonutChart data={sourceDonut} size={140} /> : <p className="text-sm text-ink-500">No data</p>}
+        <div className="card-v0 p-5">
+          <div className="mb-4">
+            <h3 className="font-semibold tracking-tight">Leads by source</h3>
+            <p className="text-xs text-ink-500 mt-0.5">Channel distribution</p>
+          </div>
+          {sourceDonut.length > 0 ? <DonutChart data={sourceDonut} size={150} /> : <p className="text-sm text-ink-500">No data</p>}
         </div>
 
-        {/* Platform bars */}
-        <div className="card p-5">
-          <h3 className="text-sm font-semibold text-ink-700 mb-4">Spend by platform</h3>
-          <BarChart data={platformBars} height={160} formatValue={(v) => fmtINR(v)} />
+        <div className="card-v0 p-5">
+          <div className="mb-4">
+            <h3 className="font-semibold tracking-tight">Spend by platform</h3>
+            <p className="text-xs text-ink-500 mt-0.5">Top 6 channels</p>
+          </div>
+          <BarChart data={platformBars} height={180} formatValue={(v) => fmtINR(v)} />
         </div>
       </div>
 
+      {/* Top campaigns + AI insights + Recent activity */}
       <div className="grid lg:grid-cols-3 gap-4">
-        {/* Top campaigns */}
-        <TopListCard
-          title="Top campaigns by CPL"
-          items={topByCPL.map((c) => ({
-            href: `/app/campaigns/${c.id}`,
-            title: c.name,
-            subtitle: `${c.platform} - ${c.status}`,
-            value: `${fmtINR(c.cpl)} CPL - ${fmtNum(c.leads)} leads`
-          }))}
-          footerLink={{ href: "/app/campaigns", label: "All campaigns" }}
-        />
+        <div className="card-v0 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold tracking-tight">Top campaigns by CPL</h3>
+            <Link href="/app/campaigns" className="text-xs text-brand-600 hover:underline">All →</Link>
+          </div>
+          <ul className="space-y-2">
+            {topByCPL.length === 0 && <li className="text-sm text-ink-500 py-2">No campaigns yet.</li>}
+            {topByCPL.map((c) => (
+              <li key={c.id}>
+                <Link href={`/app/campaigns/${c.id}`} className="block px-2 py-2 -mx-2 rounded-md hover:bg-ink-50 transition-colors">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-medium text-sm truncate flex-1">{c.name}</div>
+                    <span className={`badge ${c.status === "ACTIVE" ? "badge-success" : c.status === "PAUSED" ? "badge-warning" : "badge-neutral"}`}>{c.status}</span>
+                  </div>
+                  <div className="text-xs text-ink-500 mt-0.5 flex items-center gap-2 tabular-nums">
+                    <span>{c.platform}</span>
+                    <span className="text-ink-300">·</span>
+                    <span>{fmtINR(c.spend)}</span>
+                    <span className="text-ink-300">·</span>
+                    <span>{fmtNum(c.leads)} leads</span>
+                  </div>
+                  <div className="text-xs text-brand-600 font-medium mt-0.5 tabular-nums">{fmtINR(c.cpl)} CPL</div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-        {/* Recent decisions */}
-        <TopListCard
-          title="Recent marketing decisions"
-          items={recentDecisions.map((d) => ({
-            href: `/app/decisions/${d.id}`,
-            title: `${d.decisionType.replace(/_/g, " ")} - ${d.decision.slice(0, 60)}`,
-            subtitle: d.reason.slice(0, 80),
-            value: d.evaluation ?? "Tracked"
-          }))}
-          footerLink={{ href: "/app/decisions", label: "Decision log" }}
-        />
+        {/* AI insights */}
+        <div className="card-v0 p-5 bg-gradient-to-br from-white to-brand-50/30 relative overflow-hidden">
+          <div className="absolute inset-0 bg-bento opacity-20" />
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="size-6 rounded-md bg-gradient-to-br from-brand-500 to-accent-500 flex items-center justify-center text-white text-[10px] font-bold">AI</div>
+              <h3 className="font-semibold tracking-tight">Insights</h3>
+            </div>
+            <ul className="space-y-2.5">
+              {insights.length === 0 && <li className="text-sm text-ink-500 py-2">No insights yet — need more data.</li>}
+              {insights.map((ins, i) => (
+                <li key={i} className="text-sm leading-relaxed pl-3 border-l-2 border-brand-300">
+                  <div className="text-ink-700">{ins.text}</div>
+                  <div className="flex gap-2 mt-1.5">
+                    <button className="text-[10px] uppercase tracking-wide font-semibold text-brand-600 hover:underline">Apply</button>
+                    <button className="text-[10px] uppercase tracking-wide font-semibold text-ink-400 hover:underline">Dismiss</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
 
-        {/* Notifications */}
-        <TopListCard
-          title="Notifications"
-          items={[
-            {
-              href: "/app/notifications",
-              title: "12 new qualified leads this week",
-              subtitle: "Acme Realty, Dubai campaign",
-              value: "marketing"
-            },
-            {
-              href: "/app/notifications",
-              title: "Google campaign CPL rising",
-              subtitle: "+22% vs 7-day avg",
-              value: "performance"
-            }
-          ]}
-          footerLink={{ href: "/app/notifications", label: "All notifications" }}
-        />
+        {/* Recent activity timeline */}
+        <div className="card-v0 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold tracking-tight">Recent activity</h3>
+            <Link href="/app/audit" className="text-xs text-brand-600 hover:underline">All →</Link>
+          </div>
+          <ul className="space-y-3">
+            {recentDecisions.length === 0 && <li className="text-sm text-ink-500 py-2">No recent activity.</li>}
+            {recentDecisions.map((d) => (
+              <li key={d.id} className="flex gap-3">
+                <div className="size-6 rounded-full bg-ink-100 flex items-center justify-center text-[10px] font-semibold text-ink-600 shrink-0 mt-0.5">
+                  {d.decisionType[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{d.decision.slice(0, 60)}</div>
+                  <div className="text-xs text-ink-500 mt-0.5 tabular-nums">{timeAgo(d.createdAt)}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
-      {/* Open tasks & requests */}
+      {/* Open tasks + requests */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="card p-5">
+        <div className="card-v0 p-5">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-ink-700">Open tasks</h3>
-            <Link href="/app/tasks" className="text-xs text-brand-600 hover:underline">All</Link>
+            <h3 className="font-semibold tracking-tight">Open tasks</h3>
+            <Link href="/app/tasks" className="text-xs text-brand-600 hover:underline">All →</Link>
           </div>
           {tasks.length === 0 && <p className="text-sm text-ink-500">No open tasks.</p>}
-          <ul className="divide-y divide-ink-100">
-            {tasks.slice(0, 6).map((t) => (
-              <li key={t.id} className="py-2 text-sm">
+          <ul className="space-y-1">
+            {tasks.slice(0, 5).map((t) => (
+              <li key={t.id} className="px-2 py-2 -mx-2 rounded-md hover:bg-ink-50 transition-colors text-sm">
                 <div className="font-medium">{t.title}</div>
-                <div className="text-xs text-ink-500 mt-0.5">{t.priority} - due {t.dueDate ? new Date(t.dueDate).toLocaleDateString("en-IN") : "-"}</div>
+                <div className="text-xs text-ink-500 mt-0.5 flex items-center gap-2 tabular-nums">
+                  <span className={`badge ${t.priority === "URGENT" ? "badge-danger" : t.priority === "HIGH" ? "badge-warning" : "badge-neutral"}`}>{t.priority}</span>
+                  <span>Due {t.dueDate ? new Date(t.dueDate).toLocaleDateString("en-IN") : "—"}</span>
+                </div>
               </li>
             ))}
           </ul>
         </div>
-        <div className="card p-5">
+        <div className="card-v0 p-5">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-ink-700">Open client requests</h3>
-            <Link href="/app/requests" className="text-xs text-brand-600 hover:underline">All</Link>
+            <h3 className="font-semibold tracking-tight">Open client requests</h3>
+            <Link href="/app/requests" className="text-xs text-brand-600 hover:underline">All →</Link>
           </div>
           {requests.length === 0 && <p className="text-sm text-ink-500">No open requests.</p>}
-          <ul className="divide-y divide-ink-100">
-            {requests.slice(0, 6).map((r) => (
-              <li key={r.id} className="py-2 text-sm">
+          <ul className="space-y-1">
+            {requests.slice(0, 5).map((r) => (
+              <li key={r.id} className="px-2 py-2 -mx-2 rounded-md hover:bg-ink-50 transition-colors text-sm">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="font-medium">{r.title}</div>
-                  <span className={`badge ${r.priority === "URGENT" ? "badge-danger" : r.priority === "HIGH" ? "badge-warning" : "badge-neutral"}`}>{r.priority}</span>
+                  <div className="font-medium truncate">{r.title}</div>
+                  <span className={`badge shrink-0 ${r.priority === "URGENT" ? "badge-danger" : r.priority === "HIGH" ? "badge-warning" : "badge-neutral"}`}>{r.priority}</span>
                 </div>
-                <div className="text-xs text-ink-500 mt-0.5">{r.status} - {r.category.replace(/_/g, " ")}</div>
+                <div className="text-xs text-ink-500 mt-0.5 tabular-nums">{r.status} · {r.category.replace(/_/g, " ")}</div>
               </li>
             ))}
           </ul>
@@ -340,52 +440,45 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
   );
 }
 
-function KpiCard({ label, value, sub, sparkData, trend }: { label: string; value: string; sub?: string; sparkData?: number[]; trend?: "up-good" | "down-good" | "neutral" }) {
+function KpiCard({ label, value, sub, sparkData, sparkColor = "#365efb", delta, invertTrend }: {
+  label: string;
+  value: string;
+  sub?: string;
+  sparkData?: number[];
+  sparkColor?: string;
+  delta?: number;
+  invertTrend?: boolean;
+}) {
+  const deltaColor = delta === undefined ? "" :
+    (invertTrend ? (delta < 0 ? "text-emerald-600" : "text-rose-600") : (delta > 0 ? "text-emerald-600" : "text-rose-600"));
+  const deltaSign = delta !== undefined && delta > 0 ? "↑" : delta !== undefined && delta < 0 ? "↓" : "";
+
   return (
-    <div className="card p-5 relative overflow-hidden">
-      <div className="kpi-label">{label}</div>
-      <div className="kpi-value">{value}</div>
-      {sub && (
-        <div className={`kpi-trend ${trend === "up-good" ? "text-emerald-600" : trend === "down-good" ? "text-emerald-600" : ""}`}>{sub}</div>
-      )}
-      {sparkData && sparkData.length > 1 && (
-        <div className="absolute right-3 bottom-3 opacity-50">
-          <Sparkline data={sparkData} width={70} height={20} fill={false} color={trend === "up-good" ? "#10b981" : trend === "down-good" ? "#f59e0b" : "#365efb"} />
+    <div className="card-v0 p-5 hover-overlay-host group">
+      <div className="hover-overlay" />
+      <div className="relative">
+        <div className="text-[11px] uppercase tracking-wide font-semibold text-ink-500">{label}</div>
+        <div className="flex items-baseline gap-2 mt-2">
+          <div className="text-2xl font-bold tracking-tight tabular-nums">{value}</div>
+          {delta !== undefined && delta !== 0 && (
+            <div className={`text-xs font-semibold tabular-nums ${deltaColor}`}>{deltaSign} {Math.abs(delta).toFixed(1)}%</div>
+          )}
         </div>
-      )}
+        {sub && <div className="text-xs text-ink-500 mt-1.5 tabular-nums">{sub}</div>}
+        {sparkData && sparkData.length > 1 && (
+          <div className="mt-3 -mb-1">
+            <Sparkline data={sparkData} width={200} height={28} color={sparkColor} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function TopListCard({
-  title,
-  items,
-  footerLink
-}: {
-  title: string;
-  items: Array<{ href: string; title: string; subtitle: string; value: string }>;
-  footerLink?: { href: string; label: string };
-}) {
-  return (
-    <div className="card p-5">
-      <h3 className="text-sm font-semibold text-ink-700 mb-3">{title}</h3>
-      {items.length === 0 && <p className="text-sm text-ink-500">Nothing here yet.</p>}
-      <ul className="divide-y divide-ink-100">
-        {items.slice(0, 6).map((it) => (
-          <li key={it.href} className="py-2">
-            <Link href={it.href} className="block hover:bg-ink-50 -mx-2 px-2 rounded transition-colors">
-              <div className="text-sm font-medium truncate">{it.title}</div>
-              <div className="text-xs text-ink-500 truncate">{it.subtitle}</div>
-              <div className="text-xs text-brand-600 font-medium mt-0.5">{it.value}</div>
-            </Link>
-          </li>
-        ))}
-      </ul>
-      {footerLink && (
-        <div className="mt-3 pt-3 border-t border-ink-100 text-xs">
-          <Link href={footerLink.href} className="text-brand-600 hover:underline">{footerLink.label}</Link>
-        </div>
-      )}
-    </div>
-  );
+function timeAgo(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }
