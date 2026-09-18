@@ -77,7 +77,7 @@ export default async function EventDetail({ params }: { params: { id: string } }
     <div className="space-y-6">
       <PageHeader
         title={e.name}
-        subtitle={`${EVENT_TYPE_LABELS[e.type as keyof typeof EVENT_TYPE_LABELS]} · ${e.isOnline ? "Online" : e.city}`}
+        subtitle={`${EVENT_TYPE_LABELS[e.type as keyof typeof EVENT_TYPE_LABELS]} - ${e.isOnline ? "Online" : e.city}`}
         breadcrumbs={[{ label: "Events", href: "/app/events" }, { label: e.name }]}
         right={
           <>
@@ -112,14 +112,14 @@ export default async function EventDetail({ params }: { params: { id: string } }
       {/* Funnel edit */}
       <form action={updateFunnel} className="card p-5">
         <input type="hidden" name="eventId" value={e.id} />
-        <h3 className="text-sm font-semibold text-ink-700 mb-3">Funnel — record actuals</h3>
+        <h3 className="text-sm font-semibold text-ink-700 mb-3">Funnel - record actuals</h3>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
           <NumField label="Registrations" name="registrations" value={e.registrations} />
           <NumField label="Attended" name="attended" value={e.attended} />
           <NumField label="Qualified" name="qualified" value={e.qualified} />
           <NumField label="Consultations" name="consultations" value={e.consultations} />
           <NumField label="Conversions" name="conversions" value={e.conversions} />
-          <NumField label="Revenue (₹)" name="revenue" value={e.revenue} />
+          <NumField label="Revenue ()" name="revenue" value={e.revenue} />
         </div>
         <div className="mt-3 flex justify-end"><button className="btn btn-primary btn-sm">Save</button></div>
       </form>
@@ -161,9 +161,9 @@ export default async function EventDetail({ params }: { params: { id: string } }
             {e.registrations2.map((r) => (
               <tr key={r.id}>
                 <td>{r.name}</td>
-                <td>{r.email ?? "—"}</td>
-                <td>{r.phone ?? "—"}</td>
-                <td><span className="badge badge-neutral">{r.source ?? "—"}</span></td>
+                <td>{r.email ?? "-"}</td>
+                <td>{r.phone ?? "-"}</td>
+                <td><span className="badge badge-neutral">{r.source ?? "-"}</span></td>
                 <td>
                   {r.attended && <span className="badge badge-success">Attended</span>}
                   {r.qualified && <span className="badge badge-brand ml-1">Qualified</span>}

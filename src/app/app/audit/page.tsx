@@ -35,9 +35,9 @@ export default async function AuditPage() {
               {items.map((l) => (
                 <tr key={l.id}>
                   <td className="font-mono text-xs">{l.action}</td>
-                  <td className="text-xs">{l.entityType ?? "—"} {l.entityId ? <span className="text-ink-500">· {l.entityId.slice(0, 12)}</span> : ""}</td>
+                  <td className="text-xs">{l.entityType ?? "-"} {l.entityId ? <span className="text-ink-500">- {l.entityId.slice(0, 12)}</span> : ""}</td>
                   <td className="text-xs">{relTime(l.createdAt)}</td>
-                  <td className="text-xs font-mono text-ink-600 truncate max-w-md">{l.after ?? l.before ?? "—"}</td>
+                  <td className="text-xs font-mono text-ink-600 truncate max-w-md">{l.after ?? l.before ?? "-"}</td>
                 </tr>
               ))}
             </tbody>

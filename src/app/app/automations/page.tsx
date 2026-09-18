@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { requireSession, audit } from "@/lib/session";
 import { PageHeader } from "../_components/page-header";
 import { fmtDate, fmtDateTime, relTime } from "@/lib/format";
+import { AutomationControls } from "./controls";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -41,13 +42,21 @@ export default async function AutomationsPage() {
     include: { runs: { orderBy: { triggeredAt: "desc" }, take: 5 } },
     orderBy: { createdAt: "desc" }
   });
+  const workflowRuns = await prisma.workflowRun.findMany({
+    where: { orgId: session.orgId },
+    orderBy: { startedAt: "desc" },
+    take: 30
+  });
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Automations"
         subtitle="Deterministic workflow engine. Triggers + conditions + actions. Each automation is auditable and traceable."
+        right={<span className="badge badge-brand">Phase 1</span>}
       />
+
+      <AutomationControls />
 
       <form action={createAutomation} className="card p-5 space-y-3">
         <div className="grid md:grid-cols-3 gap-3">
@@ -110,10 +119,48 @@ export default async function AutomationsPage() {
               </div>
             </div>
             <div className="mt-3 pt-3 border-t border-ink-100 flex items-center justify-between text-xs">
-              <div className="text-ink-500">{a.runsCount} total runs · last {relTime(a.lastRunAt)}</div>
+              <div className="text-ink-500">{a.runsCount} total runs - last {relTime(a.lastRunAt)}</div>
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="card overflow-hidden">
+        <h3 className="text-sm font-semibold text-ink-700 p-4">Recent workflow runs ({workflowRuns.length})</h3>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Trigger</th>
+              <th>Entity</th>
+              <th>Status</th>
+              <th className="text-right">Duration</th>
+              <th>Steps</th>
+            </tr>
+          </thead>
+          <tbody>
+            {workflowRuns.length === 0 && (
+              <tr><td colSpan={6} className="text-center text-ink-500 py-4">No workflow runs yet. Click "Automation tick" above to fire some.</td></tr>
+            )}
+            {workflowRuns.map((r) => {
+              const steps = r.log ? JSON.parse(r.log) : [];
+              return (
+                <tr key={r.id}>
+                  <td className="text-xs">{fmtDateTime(r.startedAt)}</td>
+                  <td className="font-mono text-xs">{r.trigger}</td>
+                  <td className="text-xs">{r.entityType ?? ""} {r.entityId ? r.entityId.slice(0, 8) : ""}</td>
+                  <td>
+                    <span className={`badge ${r.status === "success" ? "badge-success" : r.status === "failed" ? "badge-danger" : "badge-warning"}`}>
+                      {r.status}
+                    </span>
+                  </td>
+                  <td className="text-right text-xs font-mono">{r.durationMs ?? 0}ms</td>
+                  <td className="text-xs">{steps.length} step(s)</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

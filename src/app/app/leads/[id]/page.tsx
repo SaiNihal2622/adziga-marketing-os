@@ -63,7 +63,7 @@ export default async function LeadDetail({ params }: { params: { id: string } })
     <div className="space-y-6">
       <PageHeader
         title={l.name ?? l.email ?? "Lead"}
-        subtitle={`${l.source} · ${l.city ?? "—"} · Score ${l.score}`}
+        subtitle={`${l.source} - ${l.city ?? "-"} - Score ${l.score}`}
         breadcrumbs={[{ label: "Leads", href: "/app/leads" }, { label: l.name ?? l.email ?? l.id }]}
         right={<StatusPill status={l.status} />}
       />
@@ -90,12 +90,12 @@ export default async function LeadDetail({ params }: { params: { id: string } })
               defaultValue={l.qualificationData ?? ""}
               rows={3}
               className="input"
-              placeholder='{"budget": "₹2Cr+", "timeline": "0-3 months", "decision_maker": true}'
+              placeholder='{"budget": "2Cr+", "timeline": "0-3 months", "decision_maker": true}'
             />
           </div>
           {l.status === "WON" && (
             <div>
-              <label className="label">Revenue (₹)</label>
+              <label className="label">Revenue ()</label>
               <input type="number" name="revenue" defaultValue={l.revenue} className="input" />
             </div>
           )}
@@ -107,19 +107,19 @@ export default async function LeadDetail({ params }: { params: { id: string } })
         <div className="space-y-4">
           <div className="card p-5">
             <h3 className="text-sm font-semibold text-ink-700 mb-3">Contact</h3>
-            <Row label="Email" value={l.email ?? "—"} />
-            <Row label="Phone" value={l.phone ?? "—"} />
-            <Row label="City" value={l.city ?? "—"} />
+            <Row label="Email" value={l.email ?? "-"} />
+            <Row label="Phone" value={l.phone ?? "-"} />
+            <Row label="City" value={l.city ?? "-"} />
           </div>
           <div className="card p-5">
             <h3 className="text-sm font-semibold text-ink-700 mb-3">Attribution</h3>
             <Row label="Source" value={l.source} />
-            <Row label="Campaign" value={l.campaign ? <Link href={`/app/campaigns/${l.campaign.id}`} className="text-brand-600 hover:underline">{l.campaign.name}</Link> : "—"} />
-            <Row label="Influencer" value={l.influencer ? <Link href={`/app/influencers/${l.influencer.id}`} className="text-brand-600 hover:underline">{l.influencer.name}</Link> : "—"} />
-            <Row label="Event" value={l.event ? <Link href={`/app/events/${l.event.id}`} className="text-brand-600 hover:underline">{l.event.name}</Link> : "—"} />
-            <Row label="Landing page" value={l.landingPage ?? "—"} />
-            <Row label="Click ID" value={l.clickId ?? "—"} />
-            <Row label="UTM Source/Medium" value={`${l.utmSource ?? "—"}/${l.utmMedium ?? "—"}`} />
+            <Row label="Campaign" value={l.campaign ? <Link href={`/app/campaigns/${l.campaign.id}`} className="text-brand-600 hover:underline">{l.campaign.name}</Link> : "-"} />
+            <Row label="Influencer" value={l.influencer ? <Link href={`/app/influencers/${l.influencer.id}`} className="text-brand-600 hover:underline">{l.influencer.name}</Link> : "-"} />
+            <Row label="Event" value={l.event ? <Link href={`/app/events/${l.event.id}`} className="text-brand-600 hover:underline">{l.event.name}</Link> : "-"} />
+            <Row label="Landing page" value={l.landingPage ?? "-"} />
+            <Row label="Click ID" value={l.clickId ?? "-"} />
+            <Row label="UTM Source/Medium" value={`${l.utmSource ?? "-"}/${l.utmMedium ?? "-"}`} />
           </div>
         </div>
       </div>
@@ -143,8 +143,8 @@ export default async function LeadDetail({ params }: { params: { id: string } })
 
       <div className="grid md:grid-cols-3 gap-4">
         <Kpi label="Won revenue" value={fmtINR(l.revenue)} />
-        <Kpi label="Last contact" value={l.lastContactAt ? relTime(l.lastContactAt) : "—"} />
-        <Kpi label="Customer" value={l.customer ? <Link href={`/app/clients/${l.clientId}`} className="text-brand-600 hover:underline">View →</Link> : "Not yet"} />
+        <Kpi label="Last contact" value={l.lastContactAt ? relTime(l.lastContactAt) : "-"} />
+        <Kpi label="Customer" value={l.customer ? <Link href={`/app/clients/${l.clientId}`} className="text-brand-600 hover:underline">View </Link> : "Not yet"} />
       </div>
 
       <div className="card p-5">

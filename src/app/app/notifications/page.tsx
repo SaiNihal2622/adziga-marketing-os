@@ -31,7 +31,7 @@ export default async function NotificationsPage() {
             <div>
               <div className="font-medium">{n.title}</div>
               <div className="text-sm text-ink-600 mt-0.5">{n.message}</div>
-              <div className="text-xs text-ink-500 mt-1">{n.type.replace(/_/g, " ")} · {relTime(n.createdAt)} · {n.channel ?? "in-app"}</div>
+              <div className="text-xs text-ink-500 mt-1">{n.type.replace(/_/g, " ")} - {relTime(n.createdAt)} - {n.channel ?? "in-app"}</div>
             </div>
             {n.link && <a href={n.link} className="btn btn-secondary btn-sm">Open</a>}
           </div>

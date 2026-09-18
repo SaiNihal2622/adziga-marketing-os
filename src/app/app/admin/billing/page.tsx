@@ -22,7 +22,7 @@ export default async function BillingPage() {
     <div className="space-y-6">
       <PageHeader
         title="Billing"
-        subtitle="Plans, subscriptions, invoices. Ad Spend is tracked separately from Adziga revenue (per spec §38)."
+        subtitle="Plans, subscriptions, invoices. Ad Spend is tracked separately from Adziga revenue (per spec ??38)."
       />
 
       <div className="card overflow-hidden">
@@ -38,7 +38,7 @@ export default async function BillingPage() {
                 <td className="font-mono">{fmtINR(a.usageBasedFee)}</td>
                 <td className="font-mono">{fmtINR(a.automationFee)}</td>
                 <td>{a.currency}</td>
-                <td className="text-xs">{a.billingEmail ?? "—"}</td>
+                <td className="text-xs">{a.billingEmail ?? "-"}</td>
                 <td>{a.billingCycleDay}</td>
               </tr>
             ))}
@@ -56,9 +56,9 @@ export default async function BillingPage() {
                 <td className="font-mono text-xs">{i.number}</td>
                 <td><StatusPill status={i.status} /></td>
                 <td className="font-mono">{fmtINR(i.amount)}</td>
-                <td className="text-xs">{fmtDate(i.periodStart)} → {fmtDate(i.periodEnd)}</td>
+                <td className="text-xs">{fmtDate(i.periodStart)}  {fmtDate(i.periodEnd)}</td>
                 <td className="text-xs">{fmtDate(i.issuedAt)}</td>
-                <td className="text-xs">{i.paidAt ? fmtDate(i.paidAt) : "—"}</td>
+                <td className="text-xs">{i.paidAt ? fmtDate(i.paidAt) : "-"}</td>
               </tr>
             ))}
           </tbody>

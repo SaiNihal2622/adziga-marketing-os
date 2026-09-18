@@ -46,19 +46,19 @@ export default async function StrategyPage() {
     <div className="space-y-6">
       <PageHeader
         title="Strategy"
-        subtitle="Human-controlled in Phase 0. Every change creates a version with author, reason, and approval status — the foundation for future intelligence."
+        subtitle="Human-controlled in Phase 0. Every change creates a version with author, reason, and approval status - the foundation for future intelligence."
       />
 
       {/* New strategy form */}
       <form action={createStrategy} className="card p-5 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[260px]">
           <label className="label">Strategy title</label>
-          <input name="title" required className="input" placeholder="Acme — Q1 2027 Lead Acquisition" />
+          <input name="title" required className="input" placeholder="Acme - Q1 2027 Lead Acquisition" />
         </div>
         <div className="w-64">
           <label className="label">Client (optional)</label>
           <select name="clientId" className="input">
-            <option value="">— Internal / general —</option>
+            <option value="">- Internal / general -</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.businessName}</option>)}
           </select>
         </div>
@@ -84,13 +84,13 @@ export default async function StrategyPage() {
             {strategies.map((s) => (
               <tr key={s.id}>
                 <td><Link href={`/app/strategy/${s.id}`} className="font-medium text-brand-600 hover:underline">{s.title}</Link></td>
-                <td>{s.client?.businessName ?? <span className="text-ink-400">—</span>}</td>
+                <td>{s.client?.businessName ?? <span className="text-ink-400">-</span>}</td>
                 <td>v{s.version}</td>
                 <td><StatusPill status={s.status} /></td>
                 <td className="text-xs">{s.author.name}</td>
-                <td className="text-xs">{s.approver?.name ?? <span className="text-ink-400">—</span>}</td>
+                <td className="text-xs">{s.approver?.name ?? <span className="text-ink-400">-</span>}</td>
                 <td className="text-xs">{fmtDate(s.updatedAt)}</td>
-                <td><Link href={`/app/strategy/${s.id}`} className="text-xs text-brand-600 hover:underline">Open →</Link></td>
+                <td><Link href={`/app/strategy/${s.id}`} className="text-xs text-brand-600 hover:underline">Open </Link></td>
               </tr>
             ))}
           </tbody>
@@ -108,9 +108,9 @@ export default async function StrategyPage() {
               return (
                 <li key={s.id} className="text-sm flex items-center gap-2">
                   <Link href={`/app/strategy/${parent?.id}`} className="text-brand-600 hover:underline">{parent?.title} v{parent?.version}</Link>
-                  <span>→</span>
+                  <span></span>
                   <Link href={`/app/strategy/${s.id}`} className="font-medium text-brand-600 hover:underline">{s.title} v{s.version}</Link>
-                  <span className="text-xs text-ink-500 ml-2">— {s.changeReason ?? "no reason recorded"}</span>
+                  <span className="text-xs text-ink-500 ml-2">- {s.changeReason ?? "no reason recorded"}</span>
                 </li>
               );
             })}

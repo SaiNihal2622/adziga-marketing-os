@@ -40,7 +40,7 @@ export default async function ClientDetail({ params }: { params: { id: string } 
     <div className="space-y-6">
       <PageHeader
         title={client.businessName}
-        subtitle={`${client.industry ?? "—"} · ${client.city ?? "—"}, ${client.country ?? "—"}`}
+        subtitle={`${client.industry ?? "-"} - ${client.city ?? "-"}, ${client.country ?? "-"}`}
         breadcrumbs={[{ label: "Clients", href: "/app/clients" }, { label: client.businessName }]}
         right={
           <>
@@ -83,12 +83,12 @@ export default async function ClientDetail({ params }: { params: { id: string } 
 
         <div className="card p-5 space-y-3">
           <h3 className="text-sm font-semibold text-ink-700">Account</h3>
-          <Row label="Contact" value={`${client.contactName} · ${client.contactEmail}`} />
-          <Row label="Phone" value={client.contactPhone ?? "—"} />
-          <Row label="Website" value={client.websiteUrl ?? "—"} />
+          <Row label="Contact" value={`${client.contactName} - ${client.contactEmail}`} />
+          <Row label="Phone" value={client.contactPhone ?? "-"} />
+          <Row label="Website" value={client.websiteUrl ?? "-"} />
           <Row label="Tier" value={client.tier} />
           <Row label="Monthly budget" value={fmtINR(client.monthlyBudget ?? 0)} />
-          <Row label="Contract" value={`${fmtDate(client.contractStart)} → ${fmtDate(client.contractEnd)}`} />
+          <Row label="Contract" value={`${fmtDate(client.contractStart)}  ${fmtDate(client.contractEnd)}`} />
           <Row label="Status" value={client.status} />
           {client.notes && (
             <div className="pt-2 border-t border-ink-100">
@@ -103,15 +103,15 @@ export default async function ClientDetail({ params }: { params: { id: string } 
         <div className="card p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-ink-700">Strategy versions</h3>
-            <Link href="/app/strategy" className="text-xs text-brand-600 hover:underline">Strategy module →</Link>
+            <Link href="/app/strategy" className="text-xs text-brand-600 hover:underline">Strategy module </Link>
           </div>
           {client.strategies.length === 0 && <p className="text-sm text-ink-500">No strategies yet.</p>}
           <ul className="divide-y divide-ink-100">
             {client.strategies.map((s) => (
               <li key={s.id} className="py-2 flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-medium">v{s.version} · {s.title}</div>
-                  <div className="text-xs text-ink-500">{s.changeReason ?? "—"} · {fmtDate(s.createdAt)}</div>
+                  <div className="text-sm font-medium">v{s.version} - {s.title}</div>
+                  <div className="text-xs text-ink-500">{s.changeReason ?? "-"} - {fmtDate(s.createdAt)}</div>
                 </div>
                 <StatusPill status={s.status} />
               </li>
@@ -126,22 +126,22 @@ export default async function ClientDetail({ params }: { params: { id: string } 
               <li key={l.id} className="py-2 flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium">{l.name ?? l.email ?? "Lead"}</div>
-                  <div className="text-xs text-ink-500">{l.source} · {l.city ?? "—"}</div>
+                  <div className="text-xs text-ink-500">{l.source} - {l.city ?? "-"}</div>
                 </div>
                 <StatusPill status={l.status} />
               </li>
             ))}
           </ul>
           <div className="mt-3 pt-3 border-t border-ink-100">
-            <Link href={`/app/leads?clientId=${client.id}`} className="text-xs text-brand-600 hover:underline">All leads →</Link>
+            <Link href={`/app/leads?clientId=${client.id}`} className="text-xs text-brand-600 hover:underline">All leads </Link>
           </div>
         </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
-        <Card title="Events" link="/app/events" items={client.events.map((e) => ({ title: e.name, sub: `${e.type} · ${fmtDate(e.startAt)}`, status: e.status }))} />
-        <Card title="Reports" link="/app/reports" items={client.reports.map((r) => ({ title: r.title, sub: `${fmtDate(r.periodStart)} → ${fmtDate(r.periodEnd)}`, status: r.status }))} />
-        <Card title="Requests" link="/app/requests" items={client.requests.map((r) => ({ title: r.title, sub: `${r.category} · ${r.priority}`, status: r.status }))} />
+        <Card title="Events" link="/app/events" items={client.events.map((e) => ({ title: e.name, sub: `${e.type} - ${fmtDate(e.startAt)}`, status: e.status }))} />
+        <Card title="Reports" link="/app/reports" items={client.reports.map((r) => ({ title: r.title, sub: `${fmtDate(r.periodStart)}  ${fmtDate(r.periodEnd)}`, status: r.status }))} />
+        <Card title="Requests" link="/app/requests" items={client.requests.map((r) => ({ title: r.title, sub: `${r.category} - ${r.priority}`, status: r.status }))} />
       </div>
 
       <div className="card p-5">
@@ -150,12 +150,12 @@ export default async function ClientDetail({ params }: { params: { id: string } 
         <ul className="space-y-2">
           {client.decisions.map((d) => (
             <li key={d.id} className="text-sm border-l-2 border-brand-300 pl-3">
-              <div className="font-medium">{d.decisionType.replace(/_/g, " ")} — {d.decision}</div>
+              <div className="font-medium">{d.decisionType.replace(/_/g, " ")} - {d.decision}</div>
               <div className="text-xs text-ink-500">{d.reason}</div>
               {d.expectedOutcome && (
                 <div className="text-xs mt-1">
                   <span className="text-ink-500">Expected:</span> {d.expectedOutcome}{" "}
-                  {d.actualOutcome && <><span className="text-ink-500">· Actual:</span> {d.actualOutcome}</>}
+                  {d.actualOutcome && <><span className="text-ink-500">- Actual:</span> {d.actualOutcome}</>}
                 </div>
               )}
             </li>
@@ -187,7 +187,7 @@ function Card({ title, items, link }: { title: string; items: any[]; link: strin
     <div className="card p-5">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-ink-700">{title}</h3>
-        <Link href={link} className="text-xs text-brand-600 hover:underline">All →</Link>
+        <Link href={link} className="text-xs text-brand-600 hover:underline">All </Link>
       </div>
       {items.length === 0 && <p className="text-sm text-ink-500">None yet.</p>}
       <ul className="divide-y divide-ink-100">

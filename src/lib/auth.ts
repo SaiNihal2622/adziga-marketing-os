@@ -17,7 +17,7 @@ declare module "next-auth" {
   }
 }
 
-// (JWT augmentation omitted — relying on loose typing for the JWT callback)
+// (JWT augmentation omitted - relying on loose typing for the JWT callback)
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,

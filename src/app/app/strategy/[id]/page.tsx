@@ -111,8 +111,8 @@ export default async function StrategyDetail({ params }: { params: { id: string 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${s.title} · v${s.version}`}
-        subtitle={`${s.client?.businessName ?? "Internal"} · Author: ${s.author.name} · ${fmtDate(s.createdAt)}`}
+        title={`${s.title} - v${s.version}`}
+        subtitle={`${s.client?.businessName ?? "Internal"} - Author: ${s.author.name} - ${fmtDate(s.createdAt)}`}
         breadcrumbs={[{ label: "Strategy", href: "/app/strategy" }, { label: `v${s.version}` }]}
         right={
           <>
@@ -141,7 +141,7 @@ export default async function StrategyDetail({ params }: { params: { id: string 
           <Field label="Target audience" name="targetAudience" defaultValue={s.targetAudience ?? ""} />
           <div className="grid grid-cols-2 gap-3">
             <Field label="Market" name="market" defaultValue={s.market ?? ""} />
-            <Field label="Budget (₹)" name="budget" type="number" defaultValue={String(s.budget ?? "")} />
+            <Field label="Budget ()" name="budget" type="number" defaultValue={String(s.budget ?? "")} />
           </div>
           <Field label="Offer" name="offer" defaultValue={s.offer ?? ""} />
           <Field label="Positioning" name="positioning" defaultValue={s.positioning ?? ""} />
@@ -166,7 +166,7 @@ export default async function StrategyDetail({ params }: { params: { id: string 
             <div className="space-y-2 text-sm">
               <Row label="Status" value={<StatusPill status={s.status} />} />
               <Row label="Author" value={s.author.name} />
-              <Row label="Approver" value={s.approver?.name ?? "—"} />
+              <Row label="Approver" value={s.approver?.name ?? "-"} />
               <Row label="Approved at" value={fmtDate(s.approvedAt)} />
               <Row label="Version" value={`v${s.version}`} />
             </div>

@@ -45,7 +45,7 @@ export default async function ClientsPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <div className="font-semibold text-lg">{c.businessName}</div>
-                  <div className="text-sm text-ink-500">{c.industry} · {c.city}</div>
+                  <div className="text-sm text-ink-500">{c.industry} - {c.city}</div>
                 </div>
                 <StatusPill status={c.status} />
               </div>
@@ -90,13 +90,13 @@ export default async function ClientsPage() {
             {clients.map((c) => (
               <tr key={c.id}>
                 <td><Link href={`/app/clients/${c.id}`} className="font-medium text-brand-600 hover:underline">{c.businessName}</Link></td>
-                <td>{c.industry ?? "—"}</td>
+                <td>{c.industry ?? "-"}</td>
                 <td><StatusPill status={c.status} /></td>
                 <td>{c.tier}</td>
                 <td>{c.contactName}<div className="text-xs text-ink-500">{c.contactEmail}</div></td>
                 <td>{c._count.campaigns}</td>
                 <td>{fmtINR(c.monthlyBudget ?? 0)}</td>
-                <td className="text-xs">{fmtDate(c.contractStart)} → {fmtDate(c.contractEnd)}</td>
+                <td className="text-xs">{fmtDate(c.contractStart)}  {fmtDate(c.contractEnd)}</td>
               </tr>
             ))}
           </tbody>

@@ -74,15 +74,15 @@ export default async function ExperimentsPage() {
         <div>
           <label className="label">Client</label>
           <select name="clientId" className="input">
-            <option value="">— Internal —</option>
+            <option value="">- Internal -</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.businessName}</option>)}
           </select>
         </div>
         <div>
           <label className="label">Campaign</label>
           <select name="campaignId" className="input">
-            <option value="">— None —</option>
-            {campaigns.map((c) => <option key={c.id} value={c.id}>{c.client.businessName} · {c.name}</option>)}
+            <option value="">- None -</option>
+            {campaigns.map((c) => <option key={c.id} value={c.id}>{c.client.businessName} - {c.name}</option>)}
           </select>
         </div>
         <div>
@@ -98,7 +98,7 @@ export default async function ExperimentsPage() {
           <input name="audience" className="input" placeholder="HNI 35-55" />
         </div>
         <div>
-          <label className="label">Budget (₹)</label>
+          <label className="label">Budget ()</label>
           <input name="budget" type="number" className="input" />
         </div>
         <div>
@@ -129,7 +129,7 @@ export default async function ExperimentsPage() {
           <div key={e.id} className="card p-5">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="text-xs text-ink-500">{e.client?.businessName ?? "Internal"} · {e.kpi}</div>
+                <div className="text-xs text-ink-500">{e.client?.businessName ?? "Internal"} - {e.kpi}</div>
                 <div className="font-semibold mt-1">{e.title}</div>
               </div>
               <StatusPill status={e.status} />
@@ -146,8 +146,8 @@ export default async function ExperimentsPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
-              <div><span className="text-ink-500">Expected:</span> {e.expectedResult ?? "—"}</div>
-              <div><span className="text-ink-500">Actual:</span> {e.actualResult ?? "—"}</div>
+              <div><span className="text-ink-500">Expected:</span> {e.expectedResult ?? "-"}</div>
+              <div><span className="text-ink-500">Actual:</span> {e.actualResult ?? "-"}</div>
             </div>
             {e.conclusion && <div className="text-xs mt-2 badge badge-success">{e.conclusion}</div>}
             <div className="mt-3 pt-3 border-t border-ink-100 flex flex-wrap gap-2">
@@ -155,10 +155,10 @@ export default async function ExperimentsPage() {
                 <form action={transition} key={s}>
                   <input type="hidden" name="id" value={e.id} />
                   <input type="hidden" name="to" value={s} />
-                  <button className="btn btn-secondary btn-sm">→ {s}</button>
+                  <button className="btn btn-secondary btn-sm"> {s}</button>
                 </form>
               ))}
-              <Link href={`/app/experiments/${e.id}`} className="ml-auto btn btn-ghost btn-sm">Open →</Link>
+              <Link href={`/app/experiments/${e.id}`} className="ml-auto btn btn-ghost btn-sm">Open </Link>
             </div>
           </div>
         ))}

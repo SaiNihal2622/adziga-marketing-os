@@ -23,7 +23,7 @@ export default async function InfluencerDetail({ params }: { params: { id: strin
     <div className="space-y-6">
       <PageHeader
         title={inf.name}
-        subtitle={`${inf.handle} · ${INFLUENCER_PLATFORM_LABELS[inf.platform as keyof typeof INFLUENCER_PLATFORM_LABELS]}`}
+        subtitle={`${inf.handle} - ${INFLUENCER_PLATFORM_LABELS[inf.platform as keyof typeof INFLUENCER_PLATFORM_LABELS]}`}
         breadcrumbs={[{ label: "Influencers", href: "/app/influencers" }, { label: inf.name }]}
       />
 
@@ -35,11 +35,11 @@ export default async function InfluencerDetail({ params }: { params: { id: strin
         <Kpi label="Conversions" value={fmtNum(inf.conversions)} />
         <Kpi label="Revenue" value={fmtINR(inf.revenue)} />
         <Kpi label="Contract" value={fmtINR(inf.contractValue ?? 0)} />
-        <Kpi label="Fee type" value={inf.feeType ?? "—"} />
-        <Kpi label="ROI" value={roi ? `${roi.toFixed(2)}x` : "—"} />
-        <Kpi label="CPL" value={inf.leadsCount > 0 ? fmtINR((inf.contractValue ?? 0) / inf.leadsCount) : "—"} />
+        <Kpi label="Fee type" value={inf.feeType ?? "-"} />
+        <Kpi label="ROI" value={roi ? `${roi.toFixed(2)}x` : "-"} />
+        <Kpi label="CPL" value={inf.leadsCount > 0 ? fmtINR((inf.contractValue ?? 0) / inf.leadsCount) : "-"} />
         <Kpi label="Status" value={inf.active ? "Active" : "Inactive"} />
-        <Kpi label="Niche" value={inf.niche ?? "—"} />
+        <Kpi label="Niche" value={inf.niche ?? "-"} />
       </div>
 
       <div className="card p-5">
@@ -58,8 +58,8 @@ export default async function InfluencerDetail({ params }: { params: { id: strin
           <tbody>
             {inf.leadEntries.slice(0, 30).map((l) => (
               <tr key={l.id}>
-                <td>{l.name ?? l.email ?? "—"}</td>
-                <td>{l.city ?? "—"}</td>
+                <td>{l.name ?? l.email ?? "-"}</td>
+                <td>{l.city ?? "-"}</td>
                 <td><StatusPill status={l.status} /></td>
                 <td className="text-xs">{fmtDate(l.createdAt)}</td>
               </tr>

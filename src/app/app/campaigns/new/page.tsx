@@ -50,13 +50,13 @@ export default async function NewCampaignPage() {
       <form action={createCampaign} className="card p-6 space-y-4 max-w-2xl">
         <div>
           <label className="label">Campaign name *</label>
-          <input name="name" required className="input" placeholder="Acme — Dubai Investor Acquisition (Meta)" />
+          <input name="name" required className="input" placeholder="Acme - Dubai Investor Acquisition (Meta)" />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Client *</label>
             <select name="clientId" required className="input">
-              <option value="">Select a client…</option>
+              <option value="">Select a client...</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.businessName}</option>)}
             </select>
           </div>
@@ -77,7 +77,7 @@ export default async function NewCampaignPage() {
             </select>
           </div>
           <div>
-            <label className="label">Budget (₹)</label>
+            <label className="label">Budget ()</label>
             <input name="budget" type="number" className="input" placeholder="100000" />
           </div>
         </div>

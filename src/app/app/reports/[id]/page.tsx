@@ -70,7 +70,7 @@ export default async function ReportDetail({ params }: { params: { id: string } 
     <div className="space-y-6">
       <PageHeader
         title={r.title}
-        subtitle={`${r.client.businessName} · ${fmtDate(r.periodStart)} → ${fmtDate(r.periodEnd)}`}
+        subtitle={`${r.client.businessName} - ${fmtDate(r.periodStart)}  ${fmtDate(r.periodEnd)}`}
         breadcrumbs={[{ label: "Reports", href: "/app/reports" }, { label: r.title }]}
         right={
           <>

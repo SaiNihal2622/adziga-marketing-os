@@ -68,7 +68,7 @@ export default async function NewClientPage() {
             <input name="websiteUrl" className="input" placeholder="https://..." />
           </div>
           <div>
-            <label className="label">Monthly budget (₹)</label>
+            <label className="label">Monthly budget ()</label>
             <input name="monthlyBudget" type="number" className="input" placeholder="100000" />
           </div>
         </div>

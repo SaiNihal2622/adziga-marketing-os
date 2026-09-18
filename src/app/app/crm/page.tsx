@@ -61,14 +61,14 @@ export default async function CRMPage({ searchParams }: { searchParams: { client
                 <Link href={`/app/leads/${l.id}`} className="flex items-center justify-between gap-2 hover:bg-ink-50 -mx-2 px-2 rounded">
                   <div>
                     <div className="text-sm font-medium">{l.name ?? l.email}</div>
-                    <div className="text-xs text-ink-500">{l.client?.businessName} · {l.source}</div>
+                    <div className="text-xs text-ink-500">{l.client?.businessName} - {l.source}</div>
                   </div>
                   <StatusPill status={l.status} />
                 </Link>
               </li>
             ))}
           </ul>
-          <div className="mt-3 pt-3 border-t border-ink-100"><Link href="/app/leads" className="text-xs text-brand-600 hover:underline">All leads →</Link></div>
+          <div className="mt-3 pt-3 border-t border-ink-100"><Link href="/app/leads" className="text-xs text-brand-600 hover:underline">All leads </Link></div>
         </div>
 
         <div className="card p-5">
@@ -78,7 +78,7 @@ export default async function CRMPage({ searchParams }: { searchParams: { client
               <li key={c.id} className="py-2 flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium">{c.name}</div>
-                  <div className="text-xs text-ink-500">{c.client.businessName} · acquired {fmtDate(c.acquiredAt)}</div>
+                  <div className="text-xs text-ink-500">{c.client.businessName} - acquired {fmtDate(c.acquiredAt)}</div>
                 </div>
                 <div className="text-sm font-mono font-medium">{fmtINR(c.revenue)}</div>
               </li>

@@ -38,18 +38,18 @@ export default async function ReportsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Reports"
-        subtitle="Client-facing reports: Executive Summary → Performance → Campaign Analysis → Funnel → Lead Quality → Creatives → Recommendations → Next Actions. Recommendations are human-authored in Phase 0."
+        subtitle="Client-facing reports: Executive Summary  Performance  Campaign Analysis  Funnel  Lead Quality  Creatives  Recommendations  Next Actions. Recommendations are human-authored in Phase 0."
       />
 
       <form action={createReport} className="card p-5 grid md:grid-cols-3 gap-3">
         <div className="md:col-span-3">
           <label className="label">Title</label>
-          <input name="title" required className="input" placeholder="Acme Realty — October 2026 Performance" />
+          <input name="title" required className="input" placeholder="Acme Realty - October 2026 Performance" />
         </div>
         <div>
           <label className="label">Client</label>
           <select name="clientId" required className="input">
-            <option value="">Select…</option>
+            <option value="">Select...</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.businessName}</option>)}
           </select>
         </div>
@@ -71,7 +71,7 @@ export default async function ReportsPage() {
           <Link href={`/app/reports/${r.id}`} key={r.id} className="card p-5 hover:shadow-md">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="text-xs text-ink-500">{r.client.businessName} · {fmtDate(r.periodStart)} → {fmtDate(r.periodEnd)}</div>
+                <div className="text-xs text-ink-500">{r.client.businessName} - {fmtDate(r.periodStart)}  {fmtDate(r.periodEnd)}</div>
                 <div className="font-semibold mt-1">{r.title}</div>
               </div>
               <StatusPill status={r.status} />

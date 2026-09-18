@@ -55,15 +55,15 @@ export default async function DecisionsPage() {
           <div>
             <label className="label">Client</label>
             <select name="clientId" className="input">
-              <option value="">— Internal —</option>
+              <option value="">- Internal -</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.businessName}</option>)}
             </select>
           </div>
           <div>
             <label className="label">Campaign</label>
             <select name="campaignId" className="input">
-              <option value="">— None —</option>
-              {campaigns.map((c) => <option key={c.id} value={c.id}>{c.client.businessName} · {c.name}</option>)}
+              <option value="">- None -</option>
+              {campaigns.map((c) => <option key={c.id} value={c.id}>{c.client.businessName} - {c.name}</option>)}
             </select>
           </div>
         </div>
@@ -73,15 +73,15 @@ export default async function DecisionsPage() {
         </div>
         <div>
           <label className="label">Reason</label>
-          <input name="reason" required className="input" placeholder="Meta CPL 18% below Google — opportunity to scale" />
+          <input name="reason" required className="input" placeholder="Meta CPL 18% below Google - opportunity to scale" />
         </div>
         <div>
           <label className="label">Hypothesis</label>
-          <input name="hypothesis" className="input" placeholder="If we scale, blended CPL stays below ₹400" />
+          <input name="hypothesis" className="input" placeholder="If we scale, blended CPL stays below 400" />
         </div>
         <div>
           <label className="label">Expected outcome</label>
-          <input name="expectedOutcome" className="input" placeholder="Blended CPL stays below ₹400" />
+          <input name="expectedOutcome" className="input" placeholder="Blended CPL stays below 400" />
         </div>
         <div className="flex justify-end"><button className="btn btn-primary">+ Log decision</button></div>
       </form>
@@ -91,7 +91,7 @@ export default async function DecisionsPage() {
           <div key={d.id} className="card p-5">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <div className="text-xs text-ink-500">{d.decisionType.replace(/_/g, " ")} · {d.client?.businessName ?? "Internal"} · {d.campaign?.name ?? ""} · {fmtDate(d.createdAt)}</div>
+                <div className="text-xs text-ink-500">{d.decisionType.replace(/_/g, " ")} - {d.client?.businessName ?? "Internal"} - {d.campaign?.name ?? ""} - {fmtDate(d.createdAt)}</div>
                 <div className="font-semibold mt-1">{d.decision}</div>
               </div>
               {d.evaluation && <span className="badge badge-success">{d.evaluation}</span>}

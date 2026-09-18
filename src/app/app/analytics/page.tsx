@@ -70,7 +70,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: { 
     <div className="space-y-6">
       <PageHeader
         title="Analytics"
-        subtitle="Unified marketing data model. Platform metrics → Business metrics. Compare periods, channels, and sources."
+        subtitle="Unified marketing data model. Platform metrics  Business metrics. Compare periods, channels, and sources."
         right={
           <div className="flex items-center gap-2 text-xs">
             <span className="text-ink-500">Range:</span>
@@ -144,7 +144,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: { 
                 <td className="text-right font-mono text-xs">{fmtNum(d.leads)}</td>
                 <td className="text-right font-mono text-xs">{fmtINR(cpl(d.spend, d.leads))}</td>
                 <td className="text-right font-mono text-xs">{fmtINR(d.revenue)}</td>
-                <td className="text-right font-mono text-xs">{d.spend > 0 ? `${roas(d.revenue, d.spend).toFixed(2)}x` : "—"}</td>
+                <td className="text-right font-mono text-xs">{d.spend > 0 ? `${roas(d.revenue, d.spend).toFixed(2)}x` : "-"}</td>
               </tr>
             ))}
           </tbody>

@@ -47,19 +47,19 @@ export default async function EventsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Events"
-        subtitle="Online + offline marketing events with full funnel: Promotion → Application → Qualification → Approval → Registration → Attendance → Consultation → Conversion."
+        subtitle="Online + offline marketing events with full funnel: Promotion  Application  Qualification  Approval  Registration  Attendance  Consultation  Conversion."
       />
 
       {/* New event form */}
       <form action={createEvent} className="card p-5 grid md:grid-cols-3 gap-3">
         <div className="md:col-span-3">
           <label className="label">Event name</label>
-          <input name="name" required className="input" placeholder="Dubai Investor Briefing — Mumbai" />
+          <input name="name" required className="input" placeholder="Dubai Investor Briefing - Mumbai" />
         </div>
         <div>
           <label className="label">Client</label>
           <select name="clientId" className="input">
-            <option value="">— Internal —</option>
+            <option value="">- Internal -</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.businessName}</option>)}
           </select>
         </div>
@@ -115,7 +115,7 @@ export default async function EventsPage() {
               <StatusPill status={e.status} />
             </div>
             <div className="text-xs text-ink-500 mt-2">
-              {e.isOnline ? "🌐 Online" : `📍 ${e.city ?? "—"} · ${e.venue ?? ""}`}
+              {e.isOnline ? "? Online" : `? ${e.city ?? "-"} - ${e.venue ?? ""}`}
             </div>
             <div className="text-xs text-ink-500 mt-1">{fmtDateTime(e.startAt)}</div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">

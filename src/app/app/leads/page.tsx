@@ -42,7 +42,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: { clie
     <div className="space-y-6">
       <PageHeader
         title="Leads & CRM"
-        subtitle="Every lead moves through: New → Contacted → Qualified → Meeting → Proposal → Won/Lost. Full attribution is preserved."
+        subtitle="Every lead moves through: New  Contacted  Qualified  Meeting  Proposal  Won/Lost. Full attribution is preserved."
         right={
           <Link href="/app/leads/new" className="btn btn-primary btn-sm">+ New lead</Link>
         }
@@ -120,15 +120,15 @@ export default async function LeadsPage({ searchParams }: { searchParams: { clie
           <tbody>
             {leads.map((l) => (
               <tr key={l.id}>
-                <td><Link href={`/app/leads/${l.id}`} className="font-medium text-brand-600 hover:underline">{l.name ?? l.email ?? "—"}</Link></td>
+                <td><Link href={`/app/leads/${l.id}`} className="font-medium text-brand-600 hover:underline">{l.name ?? l.email ?? "-"}</Link></td>
                 <td className="text-xs">
                   <div>{l.email}</div>
                   <div className="text-ink-500">{l.phone}</div>
                 </td>
                 <td><span className="badge badge-neutral">{l.source}</span></td>
-                <td className="text-xs">{l.campaign?.name ?? "—"}</td>
-                <td className="text-xs">{l.client?.businessName ?? "—"}</td>
-                <td className="text-xs">{l.city ?? "—"}</td>
+                <td className="text-xs">{l.campaign?.name ?? "-"}</td>
+                <td className="text-xs">{l.client?.businessName ?? "-"}</td>
+                <td className="text-xs">{l.city ?? "-"}</td>
                 <td><StatusPill status={l.status} /></td>
                 <td className="text-xs font-mono">{l.score}</td>
                 <td className="text-xs">{relTime(l.createdAt)}</td>

@@ -52,7 +52,7 @@ export default async function CreativeDetail({ params }: { params: { id: string 
     <div className="space-y-6">
       <PageHeader
         title={c.name}
-        subtitle={`${c.format} · ${PLATFORM_LABELS[c.platform as keyof typeof PLATFORM_LABELS] ?? c.platform}${c.campaign ? ` · ${c.campaign.client.businessName}` : ""}`}
+        subtitle={`${c.format} - ${PLATFORM_LABELS[c.platform as keyof typeof PLATFORM_LABELS] ?? c.platform}${c.campaign ? ` - ${c.campaign.client.businessName}` : ""}`}
         breadcrumbs={[{ label: "Creatives", href: "/app/creatives" }, { label: c.name }]}
         right={
           <>
@@ -78,9 +78,9 @@ export default async function CreativeDetail({ params }: { params: { id: string 
         <Kpi label="Leads" value={fmtNum(c.leads)} />
         <Kpi label="Conversions" value={fmtNum(c.conversions)} />
         <Kpi label="Revenue" value={fmtINR(c.revenue)} />
-        <Kpi label="ROAS" value={c.spend > 0 ? `${roas(c.revenue, c.spend).toFixed(2)}x` : "—"} />
+        <Kpi label="ROAS" value={c.spend > 0 ? `${roas(c.revenue, c.spend).toFixed(2)}x` : "-"} />
         <Kpi label="Version" value={`v${c.version}`} />
-        <Kpi label="Audience" value={c.audience ?? "—"} />
+        <Kpi label="Audience" value={c.audience ?? "-"} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
@@ -105,7 +105,7 @@ export default async function CreativeDetail({ params }: { params: { id: string 
           <Row label="Platform" value={c.platform} />
           <Row label="Status" value={<StatusPill status={c.status} />} />
           <Row label="Version" value={`v${c.version}`} />
-          <Row label="Campaign" value={c.campaign ? <Link href={`/app/campaigns/${c.campaign.id}`} className="text-brand-600 hover:underline">{c.campaign.name}</Link> : "—"} />
+          <Row label="Campaign" value={c.campaign ? <Link href={`/app/campaigns/${c.campaign.id}`} className="text-brand-600 hover:underline">{c.campaign.name}</Link> : "-"} />
           {c.thumbnailUrl && (
             <div className="pt-2 border-t border-ink-100">
               <img src={c.thumbnailUrl} alt={c.name} className="rounded mt-1 w-full" />

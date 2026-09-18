@@ -1,4 +1,4 @@
-// Adziga — TS-level enum-like constants (SQLite doesn't support enums)
+// Adziga - TS-level enum-like constants (SQLite doesn't support enums)
 // These are the source of truth for string values used across the app.
 
 export const Role = {
@@ -38,9 +38,9 @@ export const OrgTier = {
 export type OrgTier = (typeof OrgTier)[keyof typeof OrgTier];
 
 export const TIER_LABELS: Record<OrgTier, string> = {
-  FREE: "Free — Marketing Companion AI",
-  PRO: "Pro — Execution & Automation",
-  ZIGA_PLUS: "Ziga Plus — Enterprise"
+  FREE: "Free - Marketing Companion AI",
+  PRO: "Pro - Execution & Automation",
+  ZIGA_PLUS: "Ziga Plus - Enterprise"
 };
 
 export const TIER_RANK: Record<OrgTier, number> = { FREE: 0, PRO: 1, ZIGA_PLUS: 2 };
@@ -446,6 +446,9 @@ export function navRoutesForRole(role: Role): { client: string[]; operator: stri
     return {
       operator: [
         "Overview",
+        "Orchestrate",
+        "Intelligence",
+        "Connectors",
         "Clients",
         "Campaigns",
         "Strategy",
@@ -477,6 +480,8 @@ export function navRoutesForRole(role: Role): { client: string[]; operator: stri
     return {
       operator: [
         "Overview",
+        "Orchestrate",
+        "Intelligence",
         "Clients",
         "Campaigns",
         "Strategy",
@@ -488,6 +493,7 @@ export function navRoutesForRole(role: Role): { client: string[]; operator: stri
         "Analytics",
         "Reports",
         "Tasks",
+        "Automations",
         "AI Assistant"
       ],
       client: []

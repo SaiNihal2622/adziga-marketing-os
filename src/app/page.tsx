@@ -31,7 +31,7 @@ export default function MarketingHome() {
         <div className="relative max-w-7xl mx-auto px-6 pt-20 pb-24">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-ink-200 bg-white text-xs text-ink-600 mb-6">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            Phase 0 — Human-led marketing, AI-assisted
+            Phase 0 - Human-led marketing, AI-assisted
           </div>
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight max-w-4xl">
             Marketing as a{" "}
@@ -42,12 +42,12 @@ export default function MarketingHome() {
           </h1>
           <p className="mt-6 text-lg text-ink-600 max-w-2xl">
             Adziga connects strategy, campaign execution, lead management, creative
-            production, analytics, and reporting into one continuous system — built for
+            production, analytics, and reporting into one continuous system - built for
             teams that treat marketing as infrastructure, not magic.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/onboarding" className="btn btn-primary text-base px-6 py-3">
-              Start onboarding →
+              Start onboarding 
             </Link>
             <Link href="/login" className="btn btn-secondary text-base px-6 py-3">
               Sign in to your org
@@ -62,9 +62,9 @@ export default function MarketingHome() {
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-center">
               {[
                 ["Strategy", "Human-authored"],
-                ["Execution", "Meta · Google · WhatsApp"],
+                ["Execution", "Meta - Google - WhatsApp"],
                 ["Data", "Structured, attributable"],
-                ["Measurement", "CPL · CAC · ROAS"],
+                ["Measurement", "CPL - CAC - ROAS"],
                 ["Learning", "Decision log + experiments"],
                 ["Better Strategy", "Compounding edge"]
               ].map(([title, sub], i) => (
@@ -83,7 +83,7 @@ export default function MarketingHome() {
       <section id="tiers" className="max-w-7xl mx-auto px-6 py-24">
         <div className="text-center mb-12">
           <div className="text-xs uppercase tracking-wide font-semibold text-ink-500 mb-2">
-            Three tiers — pick the one that matches your stage
+            Three tiers - pick the one that matches your stage
           </div>
           <h2 className="text-3xl font-bold">From a marketing assistant to enterprise-grade orchestration.</h2>
         </div>
@@ -139,7 +139,7 @@ export default function MarketingHome() {
       <section id="roadmap" className="max-w-7xl mx-auto px-6 py-24">
         <div className="text-center mb-10">
           <div className="text-xs uppercase tracking-wide font-semibold text-ink-500 mb-2">
-            Phased evolution — never fake AI
+            Phased evolution - never fake AI
           </div>
           <h2 className="text-3xl font-bold">A system that earns autonomy.</h2>
           <p className="text-ink-600 mt-3 max-w-2xl mx-auto">
@@ -151,7 +151,7 @@ export default function MarketingHome() {
           {[
             ["Phase 0", "Now", "Hybrid agency + structured automation + data capture"],
             ["Phase 1", "Next", "Automation engine across Meta, Google, WhatsApp, CRM"],
-            ["Phase 2", "Future", "Strategy intelligence (industry × audience × budget)"],
+            ["Phase 2", "Future", "Strategy intelligence (industry ?? audience ?? budget)"],
             ["Phase 4", "Eventually", "Marketing orchestration with human approval gates"]
           ].map(([phase, when, desc]) => (
             <div key={phase} className="card p-5">
@@ -182,7 +182,7 @@ export default function MarketingHome() {
         <div className="max-w-7xl mx-auto px-6 py-8 text-sm text-ink-500 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Logo />
-            <span>© {new Date().getFullYear()} Adziga · AI-first Marketing OS</span>
+            <span>?? {new Date().getFullYear()} Adziga - AI-first Marketing OS</span>
           </div>
           <div className="flex gap-6">
             <a href="#platform" className="hover:text-brand-600">Platform</a>

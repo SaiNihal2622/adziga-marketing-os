@@ -58,7 +58,7 @@ export function LoginForm() {
           className="input"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
+          placeholder=""
         />
       </div>
       {error && (
@@ -67,7 +67,7 @@ export function LoginForm() {
         </div>
       )}
       <button type="submit" disabled={loading} className="btn btn-primary w-full">
-        {loading ? "Signing in…" : "Sign in"}
+        {loading ? "Signing in..." : "Sign in"}
       </button>
       <p className="text-xs text-center text-ink-500">
         No account?{" "}

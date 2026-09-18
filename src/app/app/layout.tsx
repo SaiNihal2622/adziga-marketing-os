@@ -48,12 +48,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </main>
         <footer className="border-t border-ink-200 px-6 py-4 text-xs text-ink-500 flex items-center justify-between">
           <div>
-            Adziga · AI-first Marketing OS · {new Date().getFullYear()}
+            Adziga - AI-first Marketing OS - {new Date().getFullYear()}
           </div>
           <div className="flex items-center gap-4">
             <Link href="/app/audit" className="hover:text-brand-600">Audit</Link>
             <Link href="/app/admin/integrations" className="hover:text-brand-600">Integrations</Link>
-            <span className="badge badge-neutral">Phase 0 · Human-led</span>
+            <span className="badge badge-neutral">Phase 0 - Human-led</span>
           </div>
         </footer>
       </div>

@@ -34,7 +34,7 @@ export default async function ExperimentDetail({ params }: { params: { id: strin
     <div className="space-y-6">
       <PageHeader
         title={e.title}
-        subtitle={`${e.client?.businessName ?? "Internal"} · ${e.kpi}`}
+        subtitle={`${e.client?.businessName ?? "Internal"} - ${e.kpi}`}
         breadcrumbs={[{ label: "Experiments", href: "/app/experiments" }, { label: e.title }]}
         right={<StatusPill status={e.status} />}
       />
@@ -56,14 +56,14 @@ export default async function ExperimentDetail({ params }: { params: { id: strin
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Kpi label="Audience" value={e.audience ?? "—"} />
-        <Kpi label="Budget" value={`₹${(e.budget ?? 0).toLocaleString("en-IN")}`} />
+        <Kpi label="Audience" value={e.audience ?? "-"} />
+        <Kpi label="Budget" value={`${(e.budget ?? 0).toLocaleString("en-IN")}`} />
         <Kpi label="Duration" value={`${e.durationDays} days`} />
         <Kpi label="KPI" value={e.kpi} />
         <Kpi label="Started" value={fmtDate(e.startedAt)} />
         <Kpi label="Completed" value={fmtDate(e.completedAt)} />
-        <Kpi label="Expected" value={e.expectedResult ?? "—"} />
-        <Kpi label="Actual" value={e.actualResult ?? "—"} />
+        <Kpi label="Expected" value={e.expectedResult ?? "-"} />
+        <Kpi label="Actual" value={e.actualResult ?? "-"} />
       </div>
 
       <form action={record} className="card p-5 space-y-3">
@@ -77,7 +77,7 @@ export default async function ExperimentDetail({ params }: { params: { id: strin
           <div>
             <label className="label">Conclusion</label>
             <select name="conclusion" defaultValue={e.conclusion ?? ""} className="input">
-              <option value="">— Select —</option>
+              <option value="">- Select -</option>
               <option value="Confirmed">Confirmed</option>
               <option value="Partially Confirmed">Partially Confirmed</option>
               <option value="Refuted">Refuted</option>

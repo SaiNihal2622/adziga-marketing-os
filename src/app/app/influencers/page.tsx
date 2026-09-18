@@ -86,7 +86,7 @@ export default async function InfluencersPage() {
           <input name="audienceGeo" className="input" />
         </div>
         <div>
-          <label className="label">Contract value (₹)</label>
+          <label className="label">Contract value ()</label>
           <input name="contractValue" type="number" className="input" />
         </div>
         <div>
@@ -117,14 +117,14 @@ export default async function InfluencersPage() {
               <span className="badge badge-neutral">{INFLUENCER_PLATFORM_LABELS[i.platform as keyof typeof INFLUENCER_PLATFORM_LABELS] ?? i.platform}</span>
             </div>
             {i.niche && <div className="text-xs text-ink-600 mt-2">{i.niche}</div>}
-            <div className="text-xs text-ink-500 mt-2">{fmtNum(i.audienceSize ?? 0)} followers · {i.audienceGeo ?? "—"}</div>
+            <div className="text-xs text-ink-500 mt-2">{fmtNum(i.audienceSize ?? 0)} followers - {i.audienceGeo ?? "-"}</div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
               <div><div className="font-bold text-ink-900 text-sm">{fmtNum(i.leadsCount)}</div>Leads</div>
               <div><div className="font-bold text-ink-900 text-sm">{fmtNum(i.qualifiedLeads)}</div>Qualified</div>
               <div><div className="font-bold text-ink-900 text-sm">{fmtINR(i.revenue)}</div>Revenue</div>
             </div>
             {i.contractValue && (
-              <div className="mt-2 text-xs">Contract: {fmtINR(i.contractValue)} ({i.feeType ?? "—"})</div>
+              <div className="mt-2 text-xs">Contract: {fmtINR(i.contractValue)} ({i.feeType ?? "-"})</div>
             )}
           </Link>
         ))}

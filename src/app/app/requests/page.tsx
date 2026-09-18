@@ -52,7 +52,7 @@ export default async function RequestsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Requests"
-        subtitle="Client-submitted requests. Statuses: Submitted → Acknowledged → Assigned → In Progress → Waiting Client → Resolved."
+        subtitle="Client-submitted requests. Statuses: Submitted  Acknowledged  Assigned  In Progress  Waiting Client  Resolved."
       />
 
       <form action={createRequest} className="card p-5 grid md:grid-cols-3 gap-3">
@@ -63,7 +63,7 @@ export default async function RequestsPage() {
         <div>
           <label className="label">Client</label>
           <select name="clientId" required className="input">
-            <option value="">Select…</option>
+            <option value="">Select...</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.businessName}</option>)}
           </select>
         </div>

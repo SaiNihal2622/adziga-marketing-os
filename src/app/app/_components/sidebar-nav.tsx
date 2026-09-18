@@ -9,28 +9,31 @@ type NavItem = { label: string; href: string; icon: string };
 
 function navItemsFor(names: string[]): NavItem[] {
   const map: Record<string, { href: string; icon: string }> = {
-    Overview:    { href: "/app/overview",    icon: "◎" },
-    Clients:     { href: "/app/clients",     icon: "◉" },
-    Campaigns:   { href: "/app/campaigns",   icon: "▣" },
-    Strategy:    { href: "/app/strategy",    icon: "◇" },
-    Creatives:   { href: "/app/creatives",   icon: "▤" },
-    Leads:       { href: "/app/leads",       icon: "↘" },
-    CRM:         { href: "/app/crm",         icon: "⇆" },
-    Events:      { href: "/app/events",      icon: "✦" },
-    Influencers: { href: "/app/influencers", icon: "◐" },
-    Experiments: { href: "/app/experiments", icon: "△" },
-    Analytics:   { href: "/app/analytics",   icon: "▦" },
-    Reports:     { href: "/app/reports",     icon: "▢" },
-    Tasks:       { href: "/app/tasks",       icon: "✓" },
-    Requests:    { href: "/app/requests",    icon: "✉" },
-    Automations: { href: "/app/automations", icon: "↻" },
-    "AI Assistant": { href: "/app/ai",      icon: "✸" },
-    Admin:       { href: "/app/admin",       icon: "⚙" },
-    Audit:       { href: "/app/audit",       icon: "✥" },
-    Integrations:{ href: "/app/admin/integrations", icon: "⌬" },
-    Billing:     { href: "/app/admin/billing", icon: "₹" }
+    Overview:    { href: "/app/overview",    icon: "OV" },
+    Orchestrate: { href: "/app/orchestrate", icon: "OR" },
+    Intelligence:{ href: "/app/intelligence", icon: "AI" },
+    Connectors:  { href: "/app/connectors",  icon: "CN" },
+    Clients:     { href: "/app/clients",     icon: "CL" },
+    Campaigns:   { href: "/app/campaigns",   icon: "CP" },
+    Strategy:    { href: "/app/strategy",    icon: "ST" },
+    Creatives:   { href: "/app/creatives",   icon: "CR" },
+    Leads:       { href: "/app/leads",       icon: "LD" },
+    CRM:         { href: "/app/crm",         icon: "CM" },
+    Events:      { href: "/app/events",      icon: "EV" },
+    Influencers: { href: "/app/influencers", icon: "IF" },
+    Experiments: { href: "/app/experiments", icon: "EX" },
+    Analytics:   { href: "/app/analytics",   icon: "AN" },
+    Reports:     { href: "/app/reports",     icon: "RP" },
+    Tasks:       { href: "/app/tasks",       icon: "TK" },
+    Requests:    { href: "/app/requests",    icon: "RQ" },
+    Automations: { href: "/app/automations", icon: "AU" },
+    "AI Assistant": { href: "/app/ai",      icon: "AS" },
+    Admin:       { href: "/app/admin",       icon: "AD" },
+    Audit:       { href: "/app/audit",       icon: "LG" },
+    Integrations:{ href: "/app/admin/integrations", icon: "IN" },
+    Billing:     { href: "/app/admin/billing", icon: "BL" }
   };
-  return names.map((n) => ({ label: n, ...(map[n] || { href: "/app", icon: "•" }) }));
+  return names.map((n) => ({ label: n, ...(map[n] || { href: "/app", icon: "." }) }));
 }
 
 export function SidebarNav({
@@ -112,7 +115,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
           active ? "bg-brand-600 text-white" : "text-ink-300 hover:bg-ink-800 hover:text-white"
         }`}
       >
-        <span className="text-base w-5 text-center">{item.icon}</span>
+        <span className="text-xs font-mono w-5 text-center">{item.icon}</span>
         <span>{item.label}</span>
       </Link>
     </li>

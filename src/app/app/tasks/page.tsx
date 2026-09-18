@@ -62,7 +62,7 @@ export default async function TasksPage() {
     <div className="space-y-6">
       <PageHeader
         title="Tasks"
-        subtitle="Internal operational work. Kanban: TODO → IN_PROGRESS → BLOCKED → DONE."
+        subtitle="Internal operational work. Kanban: TODO  IN_PROGRESS  BLOCKED  DONE."
       />
 
       <form action={createTask} className="card p-5 grid md:grid-cols-3 gap-3">
@@ -77,7 +77,7 @@ export default async function TasksPage() {
         <div>
           <label className="label">Assignee</label>
           <select name="assigneeId" className="input">
-            <option value="">— Unassigned —</option>
+            <option value="">- Unassigned -</option>
             {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
@@ -93,7 +93,7 @@ export default async function TasksPage() {
         <div>
           <label className="label">Client</label>
           <select name="clientId" className="input">
-            <option value="">— None —</option>
+            <option value="">- None -</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.businessName}</option>)}
           </select>
         </div>
@@ -120,7 +120,7 @@ export default async function TasksPage() {
                     <div className="text-sm font-medium">{t.title}</div>
                     <span className={`badge ${t.priority === "URGENT" ? "badge-danger" : t.priority === "HIGH" ? "badge-warning" : "badge-neutral"}`}>{t.priority}</span>
                   </div>
-                  <div className="text-xs text-ink-500 mt-1">{t.assignee?.name ?? "Unassigned"} · {t.dueDate ? `due ${fmtDate(t.dueDate)}` : "no due date"}</div>
+                  <div className="text-xs text-ink-500 mt-1">{t.assignee?.name ?? "Unassigned"} - {t.dueDate ? `due ${fmtDate(t.dueDate)}` : "no due date"}</div>
                   <div className="mt-2 flex gap-1 flex-wrap">
                     {(["TODO", "IN_PROGRESS", "BLOCKED", "DONE"] as const).filter((s) => s !== t.status).map((s) => (
                       <form action={transition} key={s}>

@@ -1,15 +1,15 @@
 import type { OrgTier, Role } from "./constants";
 
 export function fmtINR(n: number | bigint | null | undefined): string {
-  const v = typeof n === "bigint" ? Number(n) : n ?? 0;
-  if (Math.abs(v) >= 1e7) return `₹${(v / 1e7).toFixed(2)}Cr`;
-  if (Math.abs(v) >= 1e5) return `₹${(v / 1e5).toFixed(2)}L`;
-  if (Math.abs(v) >= 1e3) return `₹${(v / 1e3).toFixed(1)}K`;
-  return `₹${v.toFixed(0)}`;
+  const v = typeof n === "bigint" ? Number(n) : (n ?? 0);
+  if (Math.abs(v) >= 1e7) return `INR ${(v / 1e7).toFixed(2)}Cr`;
+  if (Math.abs(v) >= 1e5) return `INR ${(v / 1e5).toFixed(2)}L`;
+  if (Math.abs(v) >= 1e3) return `INR ${(v / 1e3).toFixed(1)}K`;
+  return `INR ${v.toFixed(0)}`;
 }
 
 export function fmtNum(n: number | bigint | null | undefined): string {
-  const v = typeof n === "bigint" ? Number(n) : n ?? 0;
+  const v = typeof n === "bigint" ? Number(n) : (n ?? 0);
   if (Math.abs(v) >= 1e7) return `${(v / 1e7).toFixed(2)}Cr`;
   if (Math.abs(v) >= 1e5) return `${(v / 1e5).toFixed(2)}L`;
   if (Math.abs(v) >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
@@ -17,18 +17,18 @@ export function fmtNum(n: number | bigint | null | undefined): string {
 }
 
 export function fmtPct(n: number | null | undefined, decimals = 1): string {
-  if (n == null || !isFinite(n)) return "—";
+  if (n == null || !isFinite(n)) return "-";
   return `${n.toFixed(decimals)}%`;
 }
 
 export function fmtDate(d: Date | string | null | undefined): string {
-  if (!d) return "—";
+  if (!d) return "-";
   const dt = typeof d === "string" ? new Date(d) : d;
   return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export function fmtDateTime(d: Date | string | null | undefined): string {
-  if (!d) return "—";
+  if (!d) return "-";
   const dt = typeof d === "string" ? new Date(d) : d;
   return dt.toLocaleString("en-IN", {
     day: "2-digit",
@@ -39,7 +39,7 @@ export function fmtDateTime(d: Date | string | null | undefined): string {
 }
 
 export function relTime(d: Date | string | null | undefined): string {
-  if (!d) return "—";
+  if (!d) return "-";
   const dt = typeof d === "string" ? new Date(d) : d;
   const diffMs = Date.now() - dt.getTime();
   const s = Math.floor(diffMs / 1000);

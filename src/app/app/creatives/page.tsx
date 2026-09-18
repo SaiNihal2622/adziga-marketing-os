@@ -70,13 +70,13 @@ export default async function CreativesPage() {
       <form action={createCreative} className="card p-5 grid md:grid-cols-3 gap-3">
         <div className="md:col-span-3">
           <label className="label">Creative name</label>
-          <input name="name" required className="input" placeholder="Dubai Hero — Founder Story v2" />
+          <input name="name" required className="input" placeholder="Dubai Hero - Founder Story v2" />
         </div>
         <div>
           <label className="label">Campaign</label>
           <select name="campaignId" className="input">
-            <option value="">— Unassigned —</option>
-            {campaigns.map((c) => <option key={c.id} value={c.id}>{c.client.businessName} · {c.name}</option>)}
+            <option value="">- Unassigned -</option>
+            {campaigns.map((c) => <option key={c.id} value={c.id}>{c.client.businessName} - {c.name}</option>)}
           </select>
         </div>
         <div>

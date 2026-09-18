@@ -27,7 +27,7 @@ export default async function CampaignsPage({ searchParams }: { searchParams: { 
     <div className="space-y-6">
       <PageHeader
         title="Campaigns"
-        subtitle="Multi-channel campaign execution with workflow states: Draft → Internal Review → Client Approval → Ready → Active → Paused → Completed."
+        subtitle="Multi-channel campaign execution with workflow states: Draft  Internal Review  Client Approval  Ready  Active  Paused  Completed."
         right={
           <Link href="/app/campaigns/new" className="btn btn-primary btn-sm">+ New campaign</Link>
         }
@@ -90,8 +90,8 @@ export default async function CampaignsPage({ searchParams }: { searchParams: { 
                   <td className="text-right font-mono text-xs">{fmtNum(c.impressions)}</td>
                   <td className="text-right font-mono text-xs">{fmtNum(c.leads)}</td>
                   <td className="text-right font-mono text-xs">{fmtINR(cpl)}</td>
-                  <td className="text-right font-mono text-xs">{c.spent > 0 ? `${ro.toFixed(2)}x` : "—"}</td>
-                  <td><Link href={`/app/campaigns/${c.id}`} className="text-brand-600 hover:underline text-xs">View →</Link></td>
+                  <td className="text-right font-mono text-xs">{c.spent > 0 ? `${ro.toFixed(2)}x` : "-"}</td>
+                  <td><Link href={`/app/campaigns/${c.id}`} className="text-brand-600 hover:underline text-xs">View </Link></td>
                 </tr>
               );
             })}

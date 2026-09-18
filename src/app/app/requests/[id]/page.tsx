@@ -46,7 +46,7 @@ export default async function RequestDetail({ params }: { params: { id: string }
     <div className="space-y-6">
       <PageHeader
         title={r.title}
-        subtitle={`${r.client.businessName} · ${REQUEST_CATEGORY_LABELS[r.category as keyof typeof REQUEST_CATEGORY_LABELS]}`}
+        subtitle={`${r.client.businessName} - ${REQUEST_CATEGORY_LABELS[r.category as keyof typeof REQUEST_CATEGORY_LABELS]}`}
         breadcrumbs={[{ label: "Requests", href: "/app/requests" }, { label: r.title }]}
         right={
           <>
@@ -83,7 +83,7 @@ export default async function RequestDetail({ params }: { params: { id: string }
             }
             <form action={comment} className="mt-3 flex gap-2">
               <input type="hidden" name="id" value={r.id} />
-              <input name="body" required className="input" placeholder="Add a comment…" />
+              <input name="body" required className="input" placeholder="Add a comment..." />
               <button className="btn btn-secondary btn-sm">Comment</button>
             </form>
           </div>

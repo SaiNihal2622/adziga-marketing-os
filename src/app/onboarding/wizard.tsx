@@ -54,24 +54,24 @@ export function OnboardingWizard({ steps }: { steps: Step[] }) {
 
       <textarea
         className="input min-h-[140px] font-mono text-sm"
-        placeholder="Type your answer here…"
+        placeholder="Type your answer here..."
         value={data[step.key] || ""}
         onChange={(e) => set(step.key, e.target.value)}
       />
 
       <div className="flex items-center justify-between mt-6">
         <button onClick={prev} disabled={i === 0} className="btn btn-ghost">
-          ← Back
+           Back
         </button>
         <div className="flex gap-2">
           {!last && (
             <button onClick={next} disabled={!data[step.key]} className="btn btn-primary">
-              Next →
+              Next 
             </button>
           )}
           {last && (
             <button onClick={submit} disabled={!data[step.key] || submitting} className="btn btn-primary">
-              {submitting ? "Submitting…" : "Submit & continue"}
+              {submitting ? "Submitting..." : "Submit & continue"}
             </button>
           )}
         </div>

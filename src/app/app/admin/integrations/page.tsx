@@ -14,15 +14,15 @@ export default async function IntegrationsPage() {
   });
 
   const providers = [
-    { name: "META",      desc: "Meta Ads — campaign, ad set, ad, creative performance." },
-    { name: "GOOGLE",    desc: "Google Ads + Analytics — search, display, GA4." },
-    { name: "WHATSAPP",  desc: "WhatsApp Business API — messaging + lead workflows." },
-    { name: "GEMINI",    desc: "Google Gemini — current AI assistant provider." },
-    { name: "TIKTOK",    desc: "TikTok Ads — short-form video campaigns." },
-    { name: "LINKEDIN",  desc: "LinkedIn Marketing — B2B targeting." },
-    { name: "VERTEX_AI", desc: "Vertex AI — future strategy intelligence training." },
-    { name: "BIGQUERY",  desc: "BigQuery — analytical warehouse at scale." },
-    { name: "FIREBASE",  desc: "Firebase — auth, push, real-time." }
+    { name: "META",      desc: "Meta Ads - campaign, ad set, ad, creative performance." },
+    { name: "GOOGLE",    desc: "Google Ads + Analytics - search, display, GA4." },
+    { name: "WHATSAPP",  desc: "WhatsApp Business API - messaging + lead workflows." },
+    { name: "GEMINI",    desc: "Google Gemini - current AI assistant provider." },
+    { name: "TIKTOK",    desc: "TikTok Ads - short-form video campaigns." },
+    { name: "LINKEDIN",  desc: "LinkedIn Marketing - B2B targeting." },
+    { name: "VERTEX_AI", desc: "Vertex AI - future strategy intelligence training." },
+    { name: "BIGQUERY",  desc: "BigQuery - analytical warehouse at scale." },
+    { name: "FIREBASE",  desc: "Firebase - auth, push, real-time." }
   ];
 
   return (
@@ -46,7 +46,7 @@ export default async function IntegrationsPage() {
               </div>
               {inst && (
                 <div className="mt-3 pt-3 border-t border-ink-100 text-xs text-ink-500">
-                  Last sync: {inst.lastSyncAt ? relTime(inst.lastSyncAt) : "—"}
+                  Last sync: {inst.lastSyncAt ? relTime(inst.lastSyncAt) : "-"}
                   {inst.errorMessage && <div className="text-amber-600 mt-1">{inst.errorMessage}</div>}
                 </div>
               )}

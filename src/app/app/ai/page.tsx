@@ -58,10 +58,10 @@ export default async function AIPage({ searchParams }: { searchParams: { q?: str
           <div className="mt-6 pt-6 border-t border-ink-100">
             <h3 className="text-xs uppercase tracking-wide text-ink-500 font-semibold mb-2">Governance</h3>
             <ul className="text-xs text-ink-600 space-y-1.5">
-              <li>• Assistant never executes changes — only explains data and submits requests.</li>
-              <li>• Every prompt + response is logged in AIInteraction (audit trail).</li>
-              <li>• Future RECOMMEND / AUTOMATE modes will require approval workflows.</li>
-              <li>• AI does NOT have unrestricted database access — only the controlled context shown to it.</li>
+              <li> Assistant never executes changes - only explains data and submits requests.</li>
+              <li> Every prompt + response is logged in AIInteraction (audit trail).</li>
+              <li> Future RECOMMEND / AUTOMATE modes will require approval workflows.</li>
+              <li> AI does NOT have unrestricted database access - only the controlled context shown to it.</li>
             </ul>
           </div>
         </div>

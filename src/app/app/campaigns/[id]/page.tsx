@@ -53,7 +53,7 @@ export default async function CampaignDetail({ params }: { params: { id: string 
     <div className="space-y-6">
       <PageHeader
         title={campaign.name}
-        subtitle={`${campaign.objective} · ${PLATFORM_LABELS[campaign.platform as keyof typeof PLATFORM_LABELS] ?? campaign.platform} · ${campaign.client.businessName}`}
+        subtitle={`${campaign.objective} - ${PLATFORM_LABELS[campaign.platform as keyof typeof PLATFORM_LABELS] ?? campaign.platform} - ${campaign.client.businessName}`}
         breadcrumbs={[{ label: "Campaigns", href: "/app/campaigns" }, { label: campaign.name }]}
         right={
           <>
@@ -124,7 +124,7 @@ export default async function CampaignDetail({ params }: { params: { id: string 
                   <td>{a.name}</td>
                   <td>{a.format}</td>
                   <td className="text-right font-mono text-xs">{fmtPct(a.ctr)}</td>
-                  <td className="text-right font-mono text-xs">₹{a.cpc.toFixed(0)}</td>
+                  <td className="text-right font-mono text-xs">INR {a.cpc.toFixed(0)}</td>
                 </tr>
               ))}
             </tbody>
@@ -136,14 +136,14 @@ export default async function CampaignDetail({ params }: { params: { id: string 
         <div className="card p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-ink-700">Creatives</h3>
-            <Link href="/app/creatives" className="text-xs text-brand-600 hover:underline">All →</Link>
+            <Link href="/app/creatives" className="text-xs text-brand-600 hover:underline">All </Link>
           </div>
           <ul className="divide-y divide-ink-100">
             {campaign.creatives.map((c) => (
               <li key={c.id} className="py-2 flex items-center justify-between">
                 <div>
                   <Link href={`/app/creatives/${c.id}`} className="text-sm font-medium hover:underline text-brand-600">{c.name}</Link>
-                  <div className="text-xs text-ink-500">{c.format} · {c.platform} · CTR {fmtPct(c.ctr)}</div>
+                  <div className="text-xs text-ink-500">{c.format} - {c.platform} - CTR {fmtPct(c.ctr)}</div>
                 </div>
                 <StatusPill status={c.status} />
               </li>
@@ -158,7 +158,7 @@ export default async function CampaignDetail({ params }: { params: { id: string 
               <li key={l.id} className="py-2 flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium">{l.name ?? l.email ?? "Lead"}</div>
-                  <div className="text-xs text-ink-500">{l.source} · {l.city ?? "—"}</div>
+                  <div className="text-xs text-ink-500">{l.source} - {l.city ?? "-"}</div>
                 </div>
                 <StatusPill status={l.status} />
               </li>
@@ -173,24 +173,24 @@ export default async function CampaignDetail({ params }: { params: { id: string 
         <ul className="space-y-2">
           {campaign.decisions.map((d) => (
             <li key={d.id} className="text-sm border-l-2 border-brand-300 pl-3">
-              <div className="font-medium">{d.decisionType.replace(/_/g, " ")} — {d.decision}</div>
+              <div className="font-medium">{d.decisionType.replace(/_/g, " ")} - {d.decision}</div>
               <div className="text-xs text-ink-500">{d.reason}</div>
               <div className="text-xs mt-1">{d.evaluation && <span className="badge badge-neutral">{d.evaluation}</span>}</div>
             </li>
           ))}
         </ul>
         <div className="mt-3">
-          <Link href={`/app/decisions?campaignId=${campaign.id}`} className="text-xs text-brand-600 hover:underline">Full log →</Link>
+          <Link href={`/app/decisions?campaignId=${campaign.id}`} className="text-xs text-brand-600 hover:underline">Full log </Link>
         </div>
       </div>
 
       <div className="card p-5">
         <h3 className="text-sm font-semibold text-ink-700 mb-3">Tracking</h3>
         <div className="grid md:grid-cols-3 gap-3 text-sm">
-          <div><div className="text-ink-500 text-xs">UTM Source</div><div className="font-mono">{campaign.utmSource ?? "—"}</div></div>
-          <div><div className="text-ink-500 text-xs">UTM Medium</div><div className="font-mono">{campaign.utmMedium ?? "—"}</div></div>
-          <div><div className="text-ink-500 text-xs">UTM Campaign</div><div className="font-mono">{campaign.utmCampaign ?? "—"}</div></div>
-          <div><div className="text-ink-500 text-xs">External ID</div><div className="font-mono">{campaign.externalId ?? "—"}</div></div>
+          <div><div className="text-ink-500 text-xs">UTM Source</div><div className="font-mono">{campaign.utmSource ?? "-"}</div></div>
+          <div><div className="text-ink-500 text-xs">UTM Medium</div><div className="font-mono">{campaign.utmMedium ?? "-"}</div></div>
+          <div><div className="text-ink-500 text-xs">UTM Campaign</div><div className="font-mono">{campaign.utmCampaign ?? "-"}</div></div>
+          <div><div className="text-ink-500 text-xs">External ID</div><div className="font-mono">{campaign.externalId ?? "-"}</div></div>
           <div><div className="text-ink-500 text-xs">Start date</div><div>{fmtDate(campaign.startDate)}</div></div>
           <div><div className="text-ink-500 text-xs">End date</div><div>{fmtDate(campaign.endDate)}</div></div>
         </div>

@@ -4,6 +4,8 @@
 
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { seedBenchmarks } from "../src/lib/intelligence/strategy-engine";
+import { recomputeContentPatterns } from "../src/lib/intelligence/content-engine";
 
 const prisma = new PrismaClient();
 
@@ -1152,7 +1154,17 @@ async function main() {
   console.log("  finance@adziga.in / adziga123   — Finance");
   console.log("  content@adziga.in / adziga123   — Content");
   console.log("  client@acme.in / adziga123      — Client Admin (Acme)");
-  console.log("  client@finrise.in / adziga123   — Client Admin (FinRise)");
+  console.log("  client@finrise.in / adziga123   - Client Admin (FinRise)");
+
+  console.log("\n-> Phase 2: Seeding industry benchmarks");
+  const bm = await seedBenchmarks();
+  console.log(`  Benchmarks seeded: ${(bm as any).seeded ?? "n/a"}`);
+
+  console.log("-> Phase 3: Recomputing content patterns");
+  const cp = await recomputeContentPatterns(adzigaOrg.id);
+  console.log(`  Patterns analyzed: ${cp.patternsAnalyzed}, insights: ${cp.insights.length}`);
+
+  console.log("\n✓ Phase 0 + Phase 1 + Phase 2 + Phase 3 seed complete");
 }
 
 main()

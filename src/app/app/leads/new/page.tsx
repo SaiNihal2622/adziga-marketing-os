@@ -65,7 +65,7 @@ export default async function NewLeadPage() {
           <div>
             <label className="label">Client *</label>
             <select name="clientId" required className="input">
-              <option value="">Select…</option>
+              <option value="">Select...</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.businessName}</option>)}
             </select>
           </div>
@@ -86,8 +86,8 @@ export default async function NewLeadPage() {
           <div className="col-span-2">
             <label className="label">Campaign (optional)</label>
             <select name="campaignId" className="input">
-              <option value="">— None —</option>
-              {campaigns.map((c) => <option key={c.id} value={c.id}>{c.client.businessName} · {c.name}</option>)}
+              <option value="">- None -</option>
+              {campaigns.map((c) => <option key={c.id} value={c.id}>{c.client.businessName} - {c.name}</option>)}
             </select>
           </div>
           <div>

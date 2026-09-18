@@ -77,7 +77,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
     .filter((c) => c.health === "At Risk" || c.health === "Critical" || (c.spent > 0 && c.budget && c.spent / c.budget > 0.95))
     .map((c) => ({
       kind: "warning" as const,
-      title: `${c.name} — needs attention`,
+      title: `${c.name} - needs attention`,
       desc: c.health === "Critical" ? "Critical: campaign performance degraded" : c.spent / (c.budget || 1) > 0.95 ? "Budget over 95% utilized" : "Performance below expected"
     }));
 
@@ -87,7 +87,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
     <div className="space-y-6">
       <PageHeader
         title="Overview"
-        subtitle="Marketing command center — what's happening across every channel right now."
+        subtitle="Marketing command center - what's happening across every channel right now."
         right={
           <div className="flex items-center gap-2 text-xs">
             <span className="text-ink-500">Range:</span>
@@ -113,7 +113,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
         <KpiCard label="CPL"          value={fmtINR(overallCpl)}    sub="Cost per lead" trend="down-good" />
         <KpiCard label="Customers"    value={fmtNum(totalCustomers)} sub={`CAC ${fmtINR(cac)}`} />
         <KpiCard label="Revenue"      value={fmtINR(totalRevenue)}  sub={`ROAS ${overallRoas.toFixed(2)}x`} trend="up-good" />
-        <KpiCard label="Conv. rate"   value={fmtPct(overallConv)}   sub="Lead → Customer" />
+        <KpiCard label="Conv. rate"   value={fmtPct(overallConv)}   sub="Lead  Customer" />
         <KpiCard label="Active Clients" value={fmtNum(activeClients)} sub="On platform" />
         <KpiCard label="Open Requests" value={fmtNum(requests.filter((r) => !["RESOLVED", "CLOSED"].includes(r.status)).length)} sub="Pending action" />
       </div>
@@ -133,7 +133,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
               {failedIntegrations.map((i) => (
                 <div key={i.id} className="card p-4 border-l-4 border-amber-500">
                   <div className="font-semibold">{i.provider}</div>
-                  <div className="text-sm text-ink-600 mt-1">{i.errorMessage ?? "Performance degraded — investigate."}</div>
+                  <div className="text-sm text-ink-600 mt-1">{i.errorMessage ?? "Performance degraded - investigate."}</div>
                 </div>
               ))}
             </div>
@@ -154,8 +154,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
         {/* Daily leads */}
         <div className="card p-5 lg:col-span-2">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-ink-700">Lead intake — last 14 days</h3>
-            <Link href="/app/analytics" className="text-xs text-brand-600 hover:underline">Open analytics →</Link>
+            <h3 className="text-sm font-semibold text-ink-700">Lead intake - last 14 days</h3>
+            <Link href="/app/analytics" className="text-xs text-brand-600 hover:underline">Open analytics </Link>
           </div>
           <ChartBars data={chart} />
         </div>
@@ -168,10 +168,10 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
           items={topByCPL.map((c) => ({
             href: `/app/campaigns/${c.id}`,
             title: c.name,
-            subtitle: `${c.platform} · ${c.status}`,
-            value: `${fmtINR(c.cpl)} CPL · ${fmtNum(c.leads)} leads`
+            subtitle: `${c.platform} - ${c.status}`,
+            value: `${fmtINR(c.cpl)} CPL - ${fmtNum(c.leads)} leads`
           }))}
-          footerLink={{ href: "/app/campaigns", label: "All campaigns →" }}
+          footerLink={{ href: "/app/campaigns", label: "All campaigns " }}
         />
 
         {/* Recent decisions */}
@@ -179,11 +179,11 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
           title="Recent marketing decisions"
           items={recentDecisions.map((d) => ({
             href: `/app/decisions/${d.id}`,
-            title: `${d.decisionType.replace(/_/g, " ")} — ${d.decision.slice(0, 60)}`,
+            title: `${d.decisionType.replace(/_/g, " ")} - ${d.decision.slice(0, 60)}`,
             subtitle: d.reason.slice(0, 80),
             value: d.evaluation ?? "Tracked"
           }))}
-          footerLink={{ href: "/app/decisions", label: "Decision log →" }}
+          footerLink={{ href: "/app/decisions", label: "Decision log " }}
         />
 
         {/* Notifications */}
@@ -195,7 +195,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
             subtitle: n.message,
             value: n.type.replace(/_/g, " ")
           }))}
-          footerLink={{ href: "/app/notifications", label: "All notifications →" }}
+          footerLink={{ href: "/app/notifications", label: "All notifications " }}
         />
       </div>
 
@@ -204,14 +204,14 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
         <div className="card p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-ink-700">Open tasks</h3>
-            <Link href="/app/tasks" className="text-xs text-brand-600 hover:underline">All →</Link>
+            <Link href="/app/tasks" className="text-xs text-brand-600 hover:underline">All </Link>
           </div>
-          {tasks.length === 0 && <p className="text-sm text-ink-500">No open tasks. ✨</p>}
+          {tasks.length === 0 && <p className="text-sm text-ink-500">No open tasks. </p>}
           <ul className="divide-y divide-ink-100">
             {tasks.slice(0, 6).map((t) => (
               <li key={t.id} className="py-2 text-sm">
                 <div className="font-medium">{t.title}</div>
-                <div className="text-xs text-ink-500 mt-0.5">{t.priority} · due {t.dueDate ? new Date(t.dueDate).toLocaleDateString("en-IN") : "—"}</div>
+                <div className="text-xs text-ink-500 mt-0.5">{t.priority} - due {t.dueDate ? new Date(t.dueDate).toLocaleDateString("en-IN") : "-"}</div>
               </li>
             ))}
           </ul>
@@ -219,7 +219,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
         <div className="card p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-ink-700">Open client requests</h3>
-            <Link href="/app/requests" className="text-xs text-brand-600 hover:underline">All →</Link>
+            <Link href="/app/requests" className="text-xs text-brand-600 hover:underline">All </Link>
           </div>
           {requests.length === 0 && <p className="text-sm text-ink-500">No open requests.</p>}
           <ul className="divide-y divide-ink-100">
@@ -229,7 +229,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
                   <div className="font-medium">{r.title}</div>
                   <span className={`badge ${r.priority === "URGENT" ? "badge-danger" : r.priority === "HIGH" ? "badge-warning" : "badge-neutral"}`}>{r.priority}</span>
                 </div>
-                <div className="text-xs text-ink-500 mt-0.5">{r.status} · {r.category.replace(/_/g, " ")}</div>
+                <div className="text-xs text-ink-500 mt-0.5">{r.status} - {r.category.replace(/_/g, " ")}</div>
               </li>
             ))}
           </ul>

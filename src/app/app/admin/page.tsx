@@ -35,7 +35,7 @@ export default async function AdminPage() {
     <div className="space-y-6">
       <PageHeader
         title="Admin"
-        subtitle="Operational command center — system health, integrations, AI activity, and audit."
+        subtitle="Operational command center - system health, integrations, AI activity, and audit."
         right={
           <div className="flex items-center gap-2">
             <Link href="/app/admin/integrations" className="btn btn-secondary btn-sm">Integrations</Link>
@@ -64,7 +64,7 @@ export default async function AdminPage() {
               <li key={i.id} className="py-2 flex items-center justify-between">
                 <div>
                   <div className="font-medium">{i.provider}</div>
-                  <div className="text-xs text-ink-500">Last sync: {i.lastSyncAt ? relTime(i.lastSyncAt) : "—"}</div>
+                  <div className="text-xs text-ink-500">Last sync: {i.lastSyncAt ? relTime(i.lastSyncAt) : "-"}</div>
                 </div>
                 <StatusPill status={i.status} />
               </li>
