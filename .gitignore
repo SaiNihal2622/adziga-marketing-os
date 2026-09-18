@@ -14,3 +14,4 @@ prisma/dev.db-journal
 .turbo
 .vercel
 coverage/tsconfig.tsbuildinfo
+.vercel
