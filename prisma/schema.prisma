@@ -52,6 +52,9 @@ model Organization {
   billingAccount  BillingAccount?
   invoices        Invoice[]
   adSpend         AdSpend[]
+  subscription    Subscription?
+  onboardingSteps OnboardingStep[]
+  subdomain       Subdomain?
 }
 
 model User {
@@ -61,10 +64,15 @@ model User {
   passwordHash  String?
   image         String?
   emailVerified DateTime?
+  mfaEnabled    Boolean   @default(false)
+  role          String    @default("USER") // USER | SUPER_ADMIN (system-level)
+  status        String    @default("ACTIVE") // ACTIVE | SUSPENDED
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   memberships         OrgMember[]
+  sessions            Session[]
+  oauthAccounts       OAuthAccount[]
   assignedTasks       Task[]              @relation("AssignedTasks")
   createdTasks        Task[]              @relation("CreatedTasks")
   authoredStrategies  Strategy[]          @relation("Author")
@@ -855,6 +863,7 @@ model BillingAccount {
 model Invoice {
   id          String    @id @default(cuid())
   orgId       String
+  subscriptionId String?
   number      String    @unique
   status      String    @default("DRAFT") // DRAFT | SENT | PAID | OVERDUE | CANCELLED
   amount      Float
@@ -863,10 +872,14 @@ model Invoice {
   periodEnd   DateTime
   issuedAt    DateTime  @default(now())
   paidAt      DateTime?
+  providerInvoiceId String?
   lineItems   String?
   notes       String?
 
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([orgId, status])
 }
 // --------------------------------------------------------------------------
 // PHASE 1 ? AUTOMATION ENGINE
@@ -1052,3 +1065,216 @@ model BackgroundJob {
   @@index([status])
   @@index([scheduledFor])
 }
+
+// --------------------------------------------------------------------------
+// AUTH HARDENING (Phase: production)
+// --------------------------------------------------------------------------
+
+model EmailVerification {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model MfaSecret {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  secret      String   // encrypted TOTP secret
+  enabled     Boolean  @default(false)
+  backupCodes String?  // JSON array of hashed backup codes
+  createdAt   DateTime @default(now())
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  userAgent    String?
+  ip           String?
+  expiresAt    DateTime
+  lastSeenAt   DateTime @default(now())
+  revokedAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model OAuthAccount {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     String   // google | microsoft | github
+  providerUserId String
+  accessToken  String?  // encrypted
+  refreshToken String?
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  email     String
+  userId    String?
+  ip        String
+  userAgent String?
+  success   Boolean
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+}
+
+// --------------------------------------------------------------------------
+// BILLING + SUBSCRIPTIONS (Phase: production)
+// --------------------------------------------------------------------------
+
+model Subscription {
+  id              String   @id @default(cuid())
+  orgId           String   @unique
+  plan            String   // FREE | PRO | ZIGA_PLUS
+  status          String   // active | trialing | past_due | canceled | past_grace
+  provider        String   // razorpay | stripe | manual
+  providerSubId   String?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  trialEndsAt    DateTime?
+  canceledAt     DateTime?
+  seats           Int      @default(1)
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invoices        Invoice[]
+
+  @@index([status])
+}
+
+model PaymentEvent {
+  id          String   @id @default(cuid())
+  provider    String
+  providerId  String   @unique  // idempotency: provider's event id
+  type        String   // invoice.paid | subscription.activated | subscription.canceled | etc.
+  payload     String   // raw JSON
+  processed   Boolean  @default(false)
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model WebhookDelivery {
+  id          String   @id @default(cuid())
+  provider    String   // meta | razorpay | stripe
+  endpoint    String   // /api/webhooks/...
+  signature   String?
+  payload     String
+  status      String   @default("received") // received | processing | processed | failed
+  error       String?
+  attempts    Int      @default(0)
+  receivedAt  DateTime @default(now())
+  processedAt DateTime?
+
+  @@index([provider, receivedAt])
+  @@index([status])
+}
+
+// --------------------------------------------------------------------------
+// ONBOARDING (Phase: production)
+// --------------------------------------------------------------------------
+
+model OnboardingStep {
+  id          String   @id @default(cuid())
+  orgId       String
+  step        String   // "profile" | "connect_meta" | "first_campaign" | "team" | "billing" | "done"
+  status      String   @default("pending") // pending | complete | skipped
+  data        String?  // JSON
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, step])
+}
+
+model Subdomain {
+  id          String   @id @default(cuid())
+  orgId       String   @unique
+  subdomain   String   @unique
+  verified    Boolean  @default(false)
+  verifiedAt  DateTime?
+  dnsToken    String   @unique @default(cuid())
+  createdAt   DateTime @default(now())
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+// --------------------------------------------------------------------------
+// SUPPORT / DOCS
+// --------------------------------------------------------------------------
+
+model HelpArticle {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  category    String   // getting-started | integrations | billing | troubleshooting | api
+  content     String   // markdown
+  excerpt     String?
+  published   Boolean  @default(false)
+  authorId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// --------------------------------------------------------------------------
+// EMAIL OUTBOX
+// --------------------------------------------------------------------------
+
+model EmailMessage {
+  id          String   @id @default(cuid())
+  to          String
+  from        String   @default("noreply@adziga.in")
+  subject     String
+  template    String   // welcome | verify_email | password_reset | weekly_report | ...
+  variables    String?  // JSON
+  htmlBody    String
+  textBody    String?
+  status      String   @default("pending") // pending | sending | sent | failed | bounced
+  attempts    Int      @default(0)
+  error       String?
+  provider    String   @default("smtp") // smtp | resend
+  providerId  String?  // message id from provider
+  scheduledAt DateTime @default(now())
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([status, scheduledAt])
+}
+
+// --------------------------------------------------------------------------
+// DOMAIN UPDATES TO EXISTING MODELS
+// --------------------------------------------------------------------------
+// Add Session + OAuthAccount relations to User
