@@ -24,12 +24,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=link_expired", baseUrl));
   }
 
-  // Mark token as used (atomic — authorize() also re-checks usedAt)
-  await prisma.magicLink.updateMany({
-    where: { id: link.id, usedAt: null },
-    data: { usedAt: new Date() }
-  });
-
   // Look up the user to confirm they exist
   const user = await prisma.user.findUnique({ where: { email: link.email } });
   if (!user) {
@@ -38,9 +32,9 @@ export async function GET(req: NextRequest) {
 
   logger.info("magic_link.verified", { email: link.email });
 
-  // Use NextAuth signIn to create JWT session and redirect
+  // Use NextAuth signIn to create JWT session and redirect.
   // The authorize() function in lib/auth.ts validates the magic link token
-  // and returns the user. signIn handles the JWT cookie + redirect.
+  // AND atomically marks it as used. signIn handles the JWT cookie + redirect.
   try {
     await signIn("credentials", {
       email: link.email,
