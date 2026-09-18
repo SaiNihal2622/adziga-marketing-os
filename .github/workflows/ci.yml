@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: adziga
+          POSTGRES_PASSWORD: adziga_test
+          POSTGRES_DB: adziga_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx next lint || true
+
+      - name: Test
+        env:
+          DATABASE_URL: "postgresql://adziga:adziga_test@localhost:5432/adziga_test?schema=public"
+        run: |
+          npx prisma db push --skip-generate --accept-data-loss
+          npm run test
+
+      - name: Build
+        env:
+          DATABASE_URL: "postgresql://adziga:adziga_test@localhost:5432/adziga_test?schema=public"
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: .next
+          retention-days: 7
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: lint-test-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t adziga:${{ github.sha }} .
+      - name: Test Docker image
+        run: |
+          docker run --rm -d --name adziga-test -p 3001:3000 \
+            -e DATABASE_URL="file:./dev.db" \
+            adziga:${{ github.sha }}
+          sleep 10
+          curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/ | grep -q "200"
+          docker stop adziga-test

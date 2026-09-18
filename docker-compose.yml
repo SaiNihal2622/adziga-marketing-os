@@ -1,0 +1,54 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: adziga
+      POSTGRES_PASSWORD: adziga_dev_password
+      POSTGRES_DB: adziga
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adziga"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  adziga:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://adziga:adziga_dev_password@postgres:5432/adziga?schema=public"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXTAUTH_SECRET: "change-me-in-production"
+      AUTH_SECRET: "change-me-in-production"
+      # Optional integration credentials (uncomment and fill in to enable)
+      # META_ACCESS_TOKEN: ""
+      # META_AD_ACCOUNT_ID: ""
+      # GOOGLE_ADS_DEVELOPER_TOKEN: ""
+      # GOOGLE_ADS_CUSTOMER_ID: ""
+      # GOOGLE_ADS_ACCESS_TOKEN: ""
+      # WHATSAPP_API_TOKEN: ""
+      # WHATSAPP_PHONE_NUMBER_ID: ""
+      # GEMINI_API_KEY: ""
+      ENABLE_AI_ASSISTANT: "true"
+      ENABLE_AUDIT_LOG: "true"
+      ENABLE_INTEGRATIONS: "true"
+      LOG_LEVEL: "info"
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:

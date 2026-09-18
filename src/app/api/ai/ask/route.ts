@@ -1,28 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/session";
-import { askAssistant } from "@/lib/ai";
+import { authedRoute } from "@/server/api";
+import { askAssistantSchema } from "@/server/schemas";
 import { prisma } from "@/lib/db";
 import { cpl, roas } from "@/lib/format";
+import { askAssistant } from "@/lib/ai";
 
-export async function POST(req: NextRequest) {
-  let session;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  const { question, clientId } = await req.json();
-  if (!question || typeof question !== "string") {
-    return NextResponse.json({ error: "question required" }, { status: 400 });
-  }
-
-  // Build controlled context (only authorized data, scoped to org + optional client)
-  const where: any = { orgId: session.orgId };
-  if (clientId) where.clientId = clientId;
+export const POST = authedRoute(askAssistantSchema, async (ctx, body) => {
+  const where: any = { orgId: ctx.orgId };
+  if (body.clientId) where.clientId = body.clientId;
   const campaigns = await prisma.campaign.findMany({ where });
-  const clients = await prisma.client.findMany({ where: { orgId: session.orgId, ...(clientId ? { id: clientId } : {}) } });
+  const clients = await prisma.client.findMany({
+    where: { orgId: ctx.orgId, ...(body.clientId ? { id: body.clientId } : {}) }
+  });
   const reports = await prisma.report.findMany({
-    where: { orgId: session.orgId, ...(clientId ? { clientId } : {}) },
+    where: { orgId: ctx.orgId, ...(body.clientId ? { clientId: body.clientId } : {}) },
     orderBy: { createdAt: "desc" },
     take: 3
   });
@@ -33,12 +23,14 @@ export async function POST(req: NextRequest) {
   const totalRevenue = campaigns.reduce((s, c) => s + c.revenue, 0);
 
   const result = await askAssistant({
-    orgId: session.orgId,
-    userId: session.userId,
-    clientId,
+    orgId: ctx.orgId,
+    userId: ctx.userId,
+    clientId: body.clientId,
     campaignIds: campaigns.map((c) => c.id),
-    question,
-    client: clients[0] ? { id: clients[0].id, businessName: clients[0].businessName, industry: clients[0].industry } : null,
+    question: body.question,
+    client: clients[0]
+      ? { id: clients[0].id, businessName: clients[0].businessName, industry: clients[0].industry }
+      : null,
     campaignStats: campaigns.slice(0, 20).map((c) => ({
       id: c.id,
       name: c.name,
@@ -62,5 +54,5 @@ export async function POST(req: NextRequest) {
     }))
   });
 
-  return NextResponse.json({ response: result.response, model: result.model, latencyMs: result.latencyMs });
-}
+  return { response: result.response, model: result.model, latencyMs: result.latencyMs };
+});
