@@ -139,31 +139,111 @@ export default function MarketingHome() {
         </div>
       </section>
 
-      {/* Phases / How it works */}
-      <section id="roadmap" className="py-24 bg-ink-950 text-white">
+      {/* v0-style bento grid — feature highlights with mixed sizes */}
+      <section className="py-24 bg-gradient-to-b from-white to-ink-50/50">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <div className="text-xs uppercase tracking-wide font-semibold text-accent-400 mb-2">Phased evolution</div>
-            <h2 className="text-4xl font-bold tracking-tight mb-3">A system that earns autonomy.</h2>
-            <p className="text-ink-300 max-w-2xl mx-auto">Four phases. Currently shipping Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 — yes, all of them.</p>
+          <div className="text-center mb-12">
+            <div className="text-xs uppercase tracking-wide font-semibold text-brand-600 mb-2">Why Adziga</div>
+            <h2 className="text-4xl font-bold tracking-tight mb-3">Built for teams who treat marketing as infrastructure.</h2>
           </div>
 
-          <div className="grid md:grid-cols-4 gap-4">
-            {[
-              ["Phase 0", "Now", "Human-led + structured automation + data capture", "✓"],
-              ["Phase 1", "Now", "Automation engine — Meta, Google, WhatsApp, CRM, lead routing", "✓"],
-              ["Phase 2", "Now", "Strategy Intelligence — industry benchmarks + 70/30 blending", "✓"],
-              ["Phase 3", "Now", "Content Intelligence — hook/format/CTA analysis, suggester", "✓"],
-              ["Phase 4", "Now", "Marketing Orchestration — goal → plan → approve → deploy", "✓"]
-            ].map(([phase, when2, desc, status]) => (
-              <div key={phase} className="rounded-xl border border-ink-800 p-5 bg-ink-900/50">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs text-accent-400 font-mono">{phase}</div>
-                  <span className="badge badge-success">{status} {when2}</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 auto-rows-[minmax(180px,auto)]">
+            {/* Big card — span 2 */}
+            <div className="md:col-span-2 card-v0 p-8 relative overflow-hidden hover-overlay-host group">
+              <div className="absolute inset-0 bg-bento opacity-30" />
+              <div className="relative">
+                <div className="text-xs uppercase tracking-wide font-semibold text-brand-600 mb-2">Audit trail</div>
+                <h3 className="text-2xl font-bold tracking-tight mb-2">Every decision, every change — recorded.</h3>
+                <p className="text-sm text-ink-600 max-w-md mb-4">
+                  Every campaign edit, lead score, strategy revision, automation trigger, and AI suggestion gets a timestamped audit entry. SOC 2-ready by default.
+                </p>
+                <div className="flex gap-2">
+                  <span className="badge badge-brand">Phase 0</span>
+                  <span className="badge badge-neutral">Append-only</span>
+                  <span className="badge badge-neutral">Exportable</span>
                 </div>
-                <p className="text-sm text-ink-300">{desc}</p>
               </div>
-            ))}
+            </div>
+
+            {/* Card 2 */}
+            <div className="card-v0 p-6 relative overflow-hidden hover-overlay-host">
+              <div className="absolute inset-0 bg-bento opacity-20" />
+              <div className="relative">
+                <div className="text-xs uppercase tracking-wide font-semibold text-accent-600 mb-2">Phase 4</div>
+                <h3 className="text-lg font-bold tracking-tight mb-2">Marketing Orchestration</h3>
+                <p className="text-sm text-ink-600">
+                  Set a goal. Get a plan. Approve. Deploy — across Meta, Google, WhatsApp, email, in one click.
+                </p>
+              </div>
+            </div>
+
+            {/* Card 3 */}
+            <div className="card-v0 p-6 relative overflow-hidden hover-overlay-host">
+              <div className="absolute inset-0 bg-bento opacity-20" />
+              <div className="relative">
+                <div className="text-xs uppercase tracking-wide font-semibold text-emerald-600 mb-2">Real connectors</div>
+                <h3 className="text-lg font-bold tracking-tight mb-2">No sandbox mode</h3>
+                <p className="text-sm text-ink-600">
+                  Paste your Meta / Google / WhatsApp credentials and the live API kicks in immediately. No demo data.
+                </p>
+              </div>
+            </div>
+
+            {/* Big card 2 — span 2 */}
+            <div className="md:col-span-2 card-v0 p-8 relative overflow-hidden bg-ink-950 text-white hover-overlay-host">
+              <div className="absolute inset-0 bg-bento opacity-30" />
+              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-500/20 rounded-full blur-3xl" />
+              <div className="relative">
+                <div className="text-xs uppercase tracking-wide font-semibold text-accent-400 mb-2 tabular-nums">02 — Intelligence</div>
+                <h3 className="text-2xl font-bold tracking-tight mb-2">Strategy & Content intelligence baked in.</h3>
+                <p className="text-sm text-ink-300 max-w-md mb-4">
+                  70/30 blend of your own history and industry benchmarks tells you which channels to push and which creatives are working. No data scientist required.
+                </p>
+                <div className="flex gap-3 items-center">
+                  <div className="text-xs text-ink-400 tabular-nums">12 benchmarks</div>
+                  <span className="text-ink-700">·</span>
+                  <div className="text-xs text-ink-400 tabular-nums">13 patterns</div>
+                  <span className="text-ink-700">·</span>
+                  <div className="text-xs text-ink-400 tabular-nums">6 channels</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 5 */}
+            <div className="card-v0 p-6 relative overflow-hidden hover-overlay-host">
+              <div className="absolute inset-0 bg-bento opacity-20" />
+              <div className="relative">
+                <div className="text-xs uppercase tracking-wide font-semibold text-brand-600 mb-2">Multi-tenant</div>
+                <h3 className="text-lg font-bold tracking-tight mb-2">Built for agencies</h3>
+                <p className="text-sm text-ink-600">
+                  One org per client. Strict data isolation. Per-client RBAC. White-label ready.
+                </p>
+              </div>
+            </div>
+
+            {/* Card 6 */}
+            <div className="card-v0 p-6 relative overflow-hidden hover-overlay-host">
+              <div className="absolute inset-0 bg-bento opacity-20" />
+              <div className="relative">
+                <div className="text-xs uppercase tracking-wide font-semibold text-emerald-600 mb-2">Open API</div>
+                <h3 className="text-lg font-bold tracking-tight mb-2">Everything is an endpoint.</h3>
+                <p className="text-sm text-ink-600">
+                  25+ REST endpoints. Zod-validated, audit-logged, rate-limited. Build on top of Adziga.
+                </p>
+              </div>
+            </div>
+
+            {/* Card 7 */}
+            <div className="card-v0 p-6 relative overflow-hidden hover-overlay-host">
+              <div className="absolute inset-0 bg-bento opacity-20" />
+              <div className="relative">
+                <div className="text-xs uppercase tracking-wide font-semibold text-brand-600 mb-2">Compliance</div>
+                <h3 className="text-lg font-bold tracking-tight mb-2">India + global</h3>
+                <p className="text-sm text-ink-600">
+                  Razorpay billing, INR pricing, GST invoices. GDPR + DPDP-ready data export.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>

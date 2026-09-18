@@ -6,38 +6,93 @@ export const dynamic = "force-dynamic";
 
 export default function SignupPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-ink-50 via-white to-brand-50 px-4 py-12">
-      <div className="w-full max-w-md">
-        <Link href="/" className="flex items-center gap-2 mb-6 justify-center">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M3 13L9 7L13 11L21 3" stroke="#243ff0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="9" cy="7" r="2" fill="#243ff0" />
-            <circle cx="13" cy="11" r="2" fill="#243ff0" />
-            <circle cx="21" cy="3" r="2" fill="#d946ef" />
-          </svg>
-          <span className="font-semibold text-lg tracking-tight">Adziga</span>
-        </Link>
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-white">
+      {/* Brand panel — left */}
+      <aside className="hidden lg:flex flex-col justify-between p-12 relative overflow-hidden bg-ink-950 text-white">
+        <div className="absolute inset-0 bg-bento opacity-30" />
+        <div className="absolute top-1/4 -left-32 w-96 h-96 bg-brand-500/30 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-accent-500/30 rounded-full blur-3xl" />
 
-        <div className="card p-8 fade-in">
-          <h1 className="text-2xl font-bold tracking-tight mb-1">Start your free Adziga workspace</h1>
-          <p className="text-sm text-ink-500 mb-6">
-            No credit card required. Free tier with all 14 modules. Upgrade anytime.
-          </p>
-          <SignupForm />
+        <div className="relative">
+          <Link href="/" className="inline-flex items-center gap-2">
+            <Logo />
+            <span className="font-semibold text-lg tracking-tight">Adziga</span>
+          </Link>
         </div>
 
-        <p className="text-center text-sm text-ink-500 mt-6">
-          Already have an account?{" "}
-          <Link href="/login" className="text-brand-600 hover:underline font-medium">
-            Sign in
-          </Link>
-        </p>
+        <div className="relative space-y-8">
+          <h1 className="text-4xl font-bold tracking-tight leading-tight">
+            Start free.{" "}
+            <span className="gradient-text">No card needed.</span>
+          </h1>
+          <p className="text-ink-300 text-base max-w-md leading-relaxed">
+            Spin up your Adziga workspace in 60 seconds. All 14 modules on the free tier. Upgrade only when you need scale or intelligence depth.
+          </p>
 
-        <p className="text-center text-xs text-ink-400 mt-4">
-          By signing up you agree to our{" "}
-          <Link href="/terms" className="hover:underline">Terms</Link> and{" "}
-          <Link href="/privacy" className="hover:underline">Privacy Policy</Link>.
-        </p>
+          <div className="space-y-3">
+            <Step n={1} title="Create your workspace" desc="Just an email, name, and company name. We'll provision your org + dashboard." />
+            <Step n={2} title="Connect your channels" desc="One-click Meta, Google, WhatsApp, Razorpay integrations. Or use the API." />
+            <Step n={3} title="Run your first campaign" desc="Use Phase 4 orchestration — set a goal, approve the plan, deploy." />
+          </div>
+        </div>
+
+        <div className="relative flex items-center gap-3 text-xs text-ink-400">
+          <span>© {new Date().getFullYear()} Adziga</span>
+          <span className="text-ink-700">·</span>
+          <Link href="/" className="hover:text-ink-200 transition-colors">adziga.in</Link>
+        </div>
+      </aside>
+
+      {/* Form panel — right */}
+      <main className="flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
+          <Link href="/" className="lg:hidden flex items-center gap-2 mb-8 justify-center">
+            <Logo />
+            <span className="font-semibold text-lg tracking-tight">Adziga</span>
+          </Link>
+
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Create your workspace</h2>
+              <p className="text-sm text-ink-500 mt-1">Free forever · upgrade anytime.</p>
+            </div>
+
+            <SignupForm />
+
+            <p className="text-center text-xs text-ink-400 pt-4 hairline-t">
+              Already have an account?{" "}
+              <Link href="/login" className="text-ink-900 font-medium hover:underline">Sign in →</Link>
+            </p>
+            <p className="text-center text-[11px] text-ink-400">
+              By signing up you agree to our{" "}
+              <Link href="/terms" className="hover:underline">Terms</Link> and{" "}
+              <Link href="/privacy" className="hover:underline">Privacy Policy</Link>.
+            </p>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function Logo() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M3 13L9 7L13 11L21 3" stroke="#5a85ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="9" cy="7" r="2" fill="#5a85ff" />
+      <circle cx="13" cy="11" r="2" fill="#5a85ff" />
+      <circle cx="21" cy="3" r="2" fill="#d946ef" />
+    </svg>
+  );
+}
+
+function Step({ n, title, desc }: { n: number; title: string; desc: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="shrink-0 size-7 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-semibold tabular-nums">{n}</span>
+      <div>
+        <div className="text-sm font-medium">{title}</div>
+        <div className="text-xs text-ink-400 mt-0.5">{desc}</div>
       </div>
     </div>
   );

@@ -249,3 +249,118 @@ body {
 .dark .divider {
   @apply bg-ink-800;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * v0 design language — adopted from v0.app templates
+ * Adds: hairline borders, tabular numerics, refined focus rings,
+ * smooth transitions, gradient hover overlays, dark-mode polish.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+html, body {
+  font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-feature-settings: "ss01", "cv11", "calt";
+  letter-spacing: -0.011em;
+}
+
+.font-sans { font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; }
+.font-mono { font-family: 'Geist Mono', ui-monospace, SFMono-Regular, monospace; }
+
+/* Tabular numerics — v0 uses these for KPI values */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Hairline border — 1px with alpha, used in v0 templates for subtle dividers */
+.hairline-b { border-bottom: 1px solid rgba(15, 23, 42, 0.08); }
+.dark .hairline-b { border-bottom-color: rgba(255, 255, 255, 0.08); }
+.hairline-t { border-top: 1px solid rgba(15, 23, 42, 0.08); }
+.dark .hairline-t { border-top-color: rgba(255, 255, 255, 0.08); }
+
+/* v0-style card with hairline + subtle shadow */
+.card-v0 {
+  @apply bg-white rounded-lg;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.card-v0:hover {
+  border-color: rgba(15, 23, 42, 0.14);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.dark .card-v0 {
+  @apply bg-ink-900;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.dark .card-v0:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* v0-style hover overlay (gradient on hover for image cards) */
+.hover-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3), rgba(15, 23, 42, 0.3));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.hover-overlay-host:hover .hover-overlay { opacity: 1; }
+
+/* v0-style focus ring — used on interactive elements */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px rgba(36, 63, 240, 0.18);
+}
+.dark .focus-ring:focus-visible {
+  box-shadow: 0 0 0 2px #5a85ff, 0 0 0 4px rgba(90, 133, 255, 0.22);
+}
+
+/* Refined scrollbar matching v0 */
+.scroll-v0::-webkit-scrollbar { width: 6px; height: 6px; }
+.scroll-v0::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.12);
+  border-radius: 9999px;
+}
+.scroll-v0::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 0.22); }
+.dark .scroll-v0::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); }
+.dark .scroll-v0::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); }
+
+/* Pill button — rounded-md used in v0 templates */
+.pill { @apply rounded-md; }
+.pill-lg { @apply rounded-lg; }
+
+/* Avatar circle helper */
+.avatar {
+  @apply relative shrink-0 select-none rounded-full size-9 flex items-center justify-center overflow-hidden;
+  background: linear-gradient(135deg, #243ff0, #d946ef);
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+}
+.avatar-sm { @apply size-7 text-xs; }
+.avatar-lg { @apply size-12 text-base; }
+
+/* Animated counter — used for KPIs to count up smoothly */
+@keyframes count-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.animate-count { animation: count-up 0.4s ease-out; }
+
+/* Subtle pulse for live indicators */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+.animate-live { animation: live-pulse 1.6s ease-in-out infinite; }
+
+/* Bento grid background pattern (used on hero sections) */
+.bg-bento {
+  background-image: radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.06) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+.dark .bg-bento {
+  background-image: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.08) 1px, transparent 0);
+}
+
+/* Glow effect for hero CTAs */
+.glow-brand {
+  box-shadow: 0 0 0 1px rgba(36, 63, 240, 0.16), 0 8px 32px rgba(36, 63, 240, 0.20);
+}
+.glow-accent {
+  box-shadow: 0 0 0 1px rgba(217, 70, 239, 0.16), 0 8px 32px rgba(217, 70, 239, 0.20);
+}
