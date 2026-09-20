@@ -37,8 +37,8 @@ export function authedRoute<P, R = unknown>(
     }
 
     const ctx: ApiContext = {
-      userId: (session as any).user.id,
-      orgId: (session as any).activeOrgId,
+      userId: (session as any).userId,
+      orgId: (session as any).orgId,
       req
     };
 
