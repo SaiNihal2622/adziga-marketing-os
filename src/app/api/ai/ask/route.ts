@@ -3,7 +3,8 @@ import { askAssistantSchema } from "@/server/schemas";
 import { prisma } from "@/lib/db";
 import { cpl, roas } from "@/lib/format";
 import { askAssistant } from "@/lib/ai";
-import { runMMMForOrg, scoreAllLeadsForOrg } from "@/lib/analytics";
+import { runMMMForOrg, scoreAllLeadsForOrg, computeAttributionBatch } from "@/lib/analytics";
+import type { AttributionInput } from "@/lib/analytics";
 
 export const POST = authedRoute(askAssistantSchema, async (ctx, body) => {
   const where: any = { orgId: ctx.orgId };
@@ -24,7 +25,10 @@ export const POST = authedRoute(askAssistantSchema, async (ctx, body) => {
   const totalRevenue = campaigns.reduce((s, c) => s + c.revenue, 0);
 
   // Pull deep analytics in parallel — they are read-only and isolated per org.
-  const [mmm, leadScores] = await Promise.all([
+  // MMM and lead scoring are pre-baked; attribution needs raw lead → touchpoint
+  // reconstruction so we run it inline from the same Lead query used elsewhere.
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 86400_000);
+  const [mmm, leadScores, leadsForAttribution] = await Promise.all([
     runMMMForOrg(ctx.orgId, 90).catch((e) => {
       console.error("mmm_failed", e);
       return undefined;
@@ -32,8 +36,61 @@ export const POST = authedRoute(askAssistantSchema, async (ctx, body) => {
     scoreAllLeadsForOrg(ctx.orgId, 25).catch((e) => {
       console.error("lead_scoring_failed", e);
       return [];
-    })
+    }),
+    prisma.lead
+      .findMany({
+        where: { orgId: ctx.orgId, createdAt: { gte: ninetyDaysAgo } },
+        take: 200,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          status: true,
+          source: true,
+          campaignId: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      })
+      .catch((e) => {
+        console.error("attribution_query_failed", e);
+        return [];
+      })
   ]);
+
+  // Build attribution inputs from leads (same shape as the analytics endpoint).
+  const attributionInputs: AttributionInput[] = leadsForAttribution.map((lead) => {
+    const touchpoints = [
+      {
+        channel: ((lead.source || "OTHER").toUpperCase()) as any,
+        campaignId: lead.campaignId ?? undefined,
+        occurredAt: lead.createdAt.toISOString()
+      }
+    ];
+    if (lead.updatedAt.getTime() - lead.createdAt.getTime() > 60_000) {
+      touchpoints.push({
+        channel: "DIRECT" as any,
+        campaignId: undefined,
+        occurredAt: lead.updatedAt.toISOString()
+      });
+    }
+    return { leadId: lead.id, touchpoints, converted: lead.status === "WON" };
+  });
+
+  let attribution: { leadsAnalyzed: number; channelTotals: Record<string, number> } | undefined;
+  if (attributionInputs.length) {
+    try {
+      const results = await computeAttributionBatch(attributionInputs);
+      const totals: Record<string, number> = {};
+      for (const r of results) {
+        for (const [ch, credit] of Object.entries(r.channelCredits as Record<string, number>)) {
+          totals[ch] = (totals[ch] ?? 0) + credit;
+        }
+      }
+      attribution = { leadsAnalyzed: results.length, channelTotals: totals };
+    } catch (e) {
+      console.error("attribution_compute_failed", e);
+    }
+  }
 
   const result = await askAssistant({
     orgId: ctx.orgId,
@@ -66,13 +123,18 @@ export const POST = authedRoute(askAssistantSchema, async (ctx, body) => {
       executiveSummary: r.executiveSummary
     })),
     mmm,
-    leadScores
+    leadScores,
+    attribution
   });
 
   return {
     response: result.response,
     model: result.model,
     latencyMs: result.latencyMs,
-    analyticsUsed: { mmm: Boolean(mmm), leadScores: leadScores.length }
+    analyticsUsed: {
+      mmm: Boolean(mmm),
+      leadScores: leadScores.length,
+      attribution: attribution?.leadsAnalyzed ?? 0
+    }
   };
 });
