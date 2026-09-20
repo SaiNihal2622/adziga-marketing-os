@@ -121,7 +121,7 @@ export async function askAssistant(ctx: AIContext): Promise<{
     try {
       const r = await callGemini(geminiKey, sections.join("\n\n"));
       if (r) {
-        model = "gemini-2.5-flash";
+        model = "gemini-flash-latest";
         response = r.text;
         tokensIn = r.tokensIn;
         tokensOut = r.tokensOut;
@@ -228,18 +228,22 @@ function stubAnswer(ctx: AIContext, sections: string[]): string {
 }
 
 /**
- * Call Gemini 2.5 Flash via REST. Returns null on failure so callers can
- * fall back to the deterministic stub. 30-second timeout.
+ * Call Gemini via REST. Returns null on failure so callers can fall back
+ * to the deterministic stub. 30-second timeout.
  *
  * Spec: "AI has controlled access to context". We send the full structured
  * prompt (system + context + question) — never raw user data or the whole DB.
+ *
+ * Model: "gemini-flash-latest" rolls forward to the newest stable flash
+ * release. Older versions like "gemini-2.5-flash" are being deprecated
+ * for new accounts; the latest alias survives the transition.
  */
 async function callGemini(
   apiKey: string,
   prompt: string
 ): Promise<{ text: string; tokensIn?: number; tokensOut?: number } | null> {
   const url =
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
 
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 30_000);
