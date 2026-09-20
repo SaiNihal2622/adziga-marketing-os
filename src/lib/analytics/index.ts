@@ -33,11 +33,22 @@ import { detectAnomalies } from "./anomaly-detection";
 export async function runMMMForOrg(orgId: string, days: number = 90) {
   const since = new Date(Date.now() - days * 86400_000);
 
-  // Aggregate daily spend per channel from AdSpend records
+  // Pull ad spend + linked campaign platforms (campaignId is a scalar — no relation).
   const adSpends = await prisma.adSpend.findMany({
     where: { orgId, date: { gte: since } },
-    select: { date: true, amount: true, campaign: { select: { platform: true } } }
+    select: { date: true, amount: true, campaignId: true }
   });
+
+  const campaignIds = Array.from(
+    new Set(adSpends.map((s) => s.campaignId).filter((id): id is string => Boolean(id)))
+  );
+  const campaigns = campaignIds.length
+    ? await prisma.campaign.findMany({
+        where: { id: { in: campaignIds } },
+        select: { id: true, platform: true }
+      })
+    : [];
+  const campaignPlatform = new Map(campaigns.map((c) => [c.id, c.platform]));
 
   const channelMap: Record<string, string> = {
     META: "META",
@@ -53,11 +64,14 @@ export async function runMMMForOrg(orgId: string, days: number = 90) {
     OTHER: "OTHER"
   };
 
-  const datapoints = adSpends.map((s) => ({
-    date: s.date.toISOString().slice(0, 10),
-    channel: (channelMap[s.campaign.platform] ?? "OTHER") as Channel,
-    spend: s.amount
-  }));
+  const datapoints = adSpends.map((s) => {
+    const platform = s.campaignId ? campaignPlatform.get(s.campaignId) ?? "OTHER" : "OTHER";
+    return {
+      date: s.date.toISOString().slice(0, 10),
+      channel: (channelMap[platform] ?? "OTHER") as Channel,
+      spend: s.amount
+    };
+  });
 
   // Aggregate revenue by date (from Customer.acquiredAt + revenue)
   const customers = await prisma.customer.findMany({
@@ -89,7 +103,9 @@ export async function scoreAllLeadsForOrg(orgId: string, limit: number = 100) {
       status: true,
       score: true,
       phone: true,
-      company: true
+      name: true,
+      email: true,
+      city: true
     }
   });
 
@@ -104,8 +120,8 @@ export async function scoreAllLeadsForOrg(orgId: string, limit: number = 100) {
       emailClicks: 0,
       websiteVisits: 0,
       formSubmissions: 0,
-      hasPhone: lead.phone ? 1 : 0,
-      hasCompany: lead.company ? 1 : 0,
+      hasPhone: (lead.phone ? 1 : 0) as 0 | 1,
+      hasCompany: (lead.name ? 1 : 0) as 0 | 1, // presence of name = filled form
       cityTier: 1 as 0 | 1 | 2, // default to tier 2 (unknown)
       previousEngagementScore: lead.score ?? 50,
       recencyDays: Math.min(daysSinceCreated, 30),
@@ -117,7 +133,7 @@ export async function scoreAllLeadsForOrg(orgId: string, limit: number = 100) {
   const historicalLeads = await prisma.lead.findMany({
     where: { orgId, status: { in: ["WON", "LOST"] } },
     take: 200,
-    select: { source: true, createdAt: true, status: true, score: true, phone: true, company: true }
+    select: { source: true, createdAt: true, status: true, score: true, phone: true, name: true }
   });
 
   const trainingSet = historicalLeads.map((lead) => {
@@ -130,8 +146,8 @@ export async function scoreAllLeadsForOrg(orgId: string, limit: number = 100) {
         emailClicks: 0,
         websiteVisits: 0,
         formSubmissions: 0,
-        hasPhone: lead.phone ? 1 : 0,
-        hasCompany: lead.company ? 1 : 0,
+        hasPhone: (lead.phone ? 1 : 0) as 0 | 1,
+        hasCompany: (lead.name ? 1 : 0) as 0 | 1,
         cityTier: 1 as 0 | 1 | 2,
         previousEngagementScore: lead.score ?? 50,
         recencyDays: Math.min(daysSinceCreated, 30),
@@ -172,12 +188,22 @@ export async function optimizeBudgetForOrg(orgId: string, totalBudget: number, d
   // Get spend per channel
   const adSpends = await prisma.adSpend.findMany({
     where: { orgId, date: { gte: since } },
-    select: { amount: true, campaign: { select: { platform: true } } }
+    select: { amount: true, campaignId: true }
   });
+  const spendCampaignIds = Array.from(
+    new Set(adSpends.map((s) => s.campaignId).filter((id): id is string => Boolean(id)))
+  );
+  const spendCampaigns = spendCampaignIds.length
+    ? await prisma.campaign.findMany({
+        where: { id: { in: spendCampaignIds } },
+        select: { id: true, platform: true }
+      })
+    : [];
+  const spendCampaignPlatform = new Map(spendCampaigns.map((c) => [c.id, c.platform]));
   for (const s of adSpends) {
-    const ch = s.campaign.platform || "OTHER";
-    if (!channelStats.has(ch)) channelStats.set(ch, { successes: 0, failures: 0, spend: 0, revenue: 0 });
-    channelStats.get(ch)!.spend += s.amount;
+    const platform = s.campaignId ? spendCampaignPlatform.get(s.campaignId) ?? "OTHER" : "OTHER";
+    if (!channelStats.has(platform)) channelStats.set(platform, { successes: 0, failures: 0, spend: 0, revenue: 0 });
+    channelStats.get(platform)!.spend += s.amount;
   }
 
   const arms = Array.from(channelStats.entries()).map(([channel, s]) => ({
@@ -222,16 +248,32 @@ export async function detectOrgAnomalies(orgId: string, days: number = 30) {
 
   const adSpends = await prisma.adSpend.findMany({
     where: { orgId, date: { gte: since } },
-    select: { date: true, amount: true, campaign: { select: { clicks: true, impressions: true } } }
+    select: { date: true, amount: true, campaignId: true }
   });
+  const anomalyCampaignIds = Array.from(
+    new Set(adSpends.map((s) => s.campaignId).filter((id): id is string => Boolean(id)))
+  );
+  const anomalyCampaigns = anomalyCampaignIds.length
+    ? await prisma.campaign.findMany({
+        where: { id: { in: anomalyCampaignIds } },
+        select: { id: true, clicks: true, impressions: true }
+      })
+    : [];
+  const campaignClicksImpressions = new Map(
+    anomalyCampaigns.map((c) => [c.id, { clicks: Number(c.clicks), impressions: Number(c.impressions) }])
+  );
+
   const spendByDate = new Map<string, { spend: number; clicks: number; impressions: number }>();
   for (const s of adSpends) {
     const d = s.date.toISOString().slice(0, 10);
     if (!spendByDate.has(d)) spendByDate.set(d, { spend: 0, clicks: 0, impressions: 0 });
     const e = spendByDate.get(d)!;
     e.spend += s.amount;
-    e.clicks += Number(s.campaign.clicks);
-    e.impressions += Number(s.campaign.impressions);
+    const ci = s.campaignId ? campaignClicksImpressions.get(s.campaignId) : undefined;
+    if (ci) {
+      e.clicks += ci.clicks;
+      e.impressions += ci.impressions;
+    }
   }
 
   const leadsByDate = new Map<string, number>();

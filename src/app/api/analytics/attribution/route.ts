@@ -59,12 +59,12 @@ export const POST = authedRoute(schema, async (ctx, body) => {
     };
   });
 
-  const results = computeAttributionBatch(inputs);
+  const results = await computeAttributionBatch(inputs);
 
   // Aggregate channel credits across all leads
   const totals: Record<string, number> = {};
   for (const r of results) {
-    for (const [ch, credit] of Object.entries(r.channelCredits)) {
+    for (const [ch, credit] of Object.entries(r.channelCredits as Record<string, number>)) {
       totals[ch] = (totals[ch] ?? 0) + credit;
     }
   }

@@ -6,6 +6,21 @@
 import type { Touchpoint, AttributionInput, AttributionResult, Channel } from "./types";
 
 /**
+ * Binomial coefficient C(n, k) — exact integer arithmetic.
+ * Replaces Math.comb which is unavailable in the Vercel Edge / Node 18 baseline.
+ */
+function binomial(n: number, k: number): number {
+  if (k < 0 || k > n) return 0;
+  if (k === 0 || k === n) return 1;
+  k = Math.min(k, n - k);
+  let result = 1;
+  for (let i = 0; i < k; i++) {
+    result = (result * (n - i)) / (i + 1);
+  }
+  return Math.round(result);
+}
+
+/**
  * Compute the marginal contribution of adding player `i` to coalition `S`.
  * For Adziga, we use a logistic touch decay model:
  *   contribution = exp(-daysSinceLast) * channel_weight
@@ -30,7 +45,7 @@ function marginalContribution(
   const uniqueChannels = new Set(allTouches.map((t) => t.channel)).size;
   const diversity = Math.log(1 + uniqueChannels) / Math.log(5);
   // Position weight: middle touchpoints get more credit than first/last
-  const position = 1 + Math.cos(((allTouches.length - 1) * Math.PI) / Math.max(2, allTouches.length);
+  const position = 1 + Math.cos(((allTouches.length - 1) * Math.PI) / Math.max(2, allTouches.length));
   return recency * diversity * position / spanDays;
 }
 
@@ -63,7 +78,8 @@ export function computeAttribution(input: AttributionInput): AttributionResult {
       else complementIdx.push(i);
     }
     const coalitionSize = coalition.length;
-    const weight = 1 / (n * Math.comb(n - 1, coalitionSize) || 1);
+    const denom = binomial(n - 1, coalitionSize) || 1;
+    const weight = 1 / (n * denom);
 
     for (const i of complementIdx) {
       const newTouch = input.touchpoints[i];
