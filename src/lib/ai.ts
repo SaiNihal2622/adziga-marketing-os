@@ -5,6 +5,7 @@
 // Spec ??0 - Do not build fake AI. Distinguish human vs deterministic vs AI assistance vs recommendations vs autonomous.
 
 import { prisma } from "./db";
+import type { MMMResult, AttributionResult, LeadScoreResult } from "./analytics";
 
 export type AIContext = {
   orgId: string;
@@ -17,6 +18,10 @@ export type AIContext = {
   reports?: Array<{ title: string; periodStart: Date; periodEnd: Date; executiveSummary: string | null }>;
   campaignStats?: Array<{ id: string; name: string; platform: string; spend: number; leads: number; cpl: number; status: string }>;
   kpis?: { cpl: number; cac: number; roas: number; conversion: number };
+  // Phase 4 deep analytics (pre-computed server-side, passed as read-only context)
+  mmm?: MMMResult;
+  attribution?: { leadsAnalyzed: number; channelTotals: Record<string, number> };
+  leadScores?: LeadScoreResult[];
 };
 
 const SYSTEM_PROMPT = `You are Adziga Assistant, a marketing analytics helper for a marketing operating system.
@@ -67,6 +72,43 @@ export async function askAssistant(ctx: AIContext): Promise<{
       sections.push(`- ${r.title} (${r.periodStart.toISOString().slice(0, 10)}  ${r.periodEnd.toISOString().slice(0, 10)}): ${r.executiveSummary ?? "(no summary)"}`);
     }
   }
+  if (ctx.mmm?.rows?.length) {
+    sections.push(
+      `Marketing Mix Model (last 90d, Ridge regression with adstock transformation): baseline=${ctx.mmm.baseline.toFixed(0)} | totalRevenue=${ctx.mmm.totalRevenue.toFixed(0)} | totalSpend=${ctx.mmm.totalSpend.toFixed(0)} | overallROI=${ctx.mmm.overallROI.toFixed(2)}x`
+    );
+    const top = [...ctx.mmm.rows]
+      .filter((r) => r.totalSpend > 0)
+      .sort((a, b) => b.roi - a.roi)
+      .slice(0, 3);
+    for (const r of top) {
+      sections.push(
+        `  - [${r.channel}] ROI=${r.roi.toFixed(2)}x | spend=${r.totalSpend.toFixed(0)} | attributedRevenue=${r.attributedRevenue.toFixed(0)} | confidence=${(r.confidence * 100).toFixed(0)}%`
+      );
+    }
+    if (ctx.mmm.recommendedReallocation?.length) {
+      for (const r of ctx.mmm.recommendedReallocation.slice(0, 3)) {
+        sections.push(`  - reallocation ${r.channel}: ${r.currentShare.toFixed(2)} -> ${r.recommendedShare.toFixed(2)} (${r.reason})`);
+      }
+    }
+  }
+  if (ctx.attribution && Object.keys(ctx.attribution.channelTotals).length) {
+    sections.push(
+      `Multi-touch Attribution (Shapley values, last 90d, ${ctx.attribution.leadsAnalyzed} leads):`
+    );
+    const sorted = Object.entries(ctx.attribution.channelTotals).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    for (const [ch, credit] of sorted) {
+      sections.push(`  - ${ch}: ${(credit * 100).toFixed(1)}% credit`);
+    }
+  }
+  if (ctx.leadScores?.length) {
+    const top = [...ctx.leadScores].sort((a, b) => b.probability - a.probability).slice(0, 3);
+    sections.push(`Top-scored leads (logistic regression):`);
+    for (const s of top) {
+      sections.push(
+        `  - ${s.leadId.slice(0, 12)}... score=${s.score} | P(convert)=${(s.probability * 100).toFixed(0)}% | topFactor=${s.topFactors[0]?.feature} (${s.topFactors[0]?.direction})`
+      );
+    }
+  }
   sections.push(`\nUser question: ${ctx.question}`);
 
   // Stub implementation: deterministic, traceable, honest about being an assistant.
@@ -114,6 +156,11 @@ function stubAnswer(ctx: AIContext, sections: string[]): string {
   }
 
   if (q.includes("lead") && (q.includes("quality") || q.includes("qualified"))) {
+    if (ctx.leadScores?.length) {
+      const top = [...ctx.leadScores].sort((a, b) => b.probability - a.probability).slice(0, 3);
+      const lines = top.map((s) => ` ${s.leadId.slice(0, 12)}... P(convert)=${(s.probability * 100).toFixed(0)}% (top factor: ${s.topFactors[0]?.feature})`);
+      return `Top-scored leads from the logistic-regression model:\n` + lines.join("\n");
+    }
     return "Lead quality is tracked per source via the qualification  meeting  proposal  customer lifecycle. Open Reports  Lead Quality to see conversion rates by source and campaign. AI-generated lead scoring is a Phase 2 capability.";
   }
 
@@ -128,5 +175,29 @@ function stubAnswer(ctx: AIContext, sections: string[]): string {
     return "Current campaign statuses:\n" + lines.join("\n");
   }
 
-  return "I'm Adziga Assistant - I can explain KPIs, summarize reports, and answer campaign questions based on the controlled context I'm given. I don't execute changes autonomously; if you need an action taken, please submit a request.";
+  // Analytics-grounded answers (Phase 4)
+  if ((q.includes("best") || q.includes("top") || q.includes("highest")) && (q.includes("channel") || q.includes("performing") || q.includes("roi"))) {
+    if (ctx.mmm?.rows?.length) {
+      const top = [...ctx.mmm.rows].filter((r) => r.totalSpend > 0).sort((a, b) => b.roi - a.roi).slice(0, 3);
+      const lines = top.map((r, i) => ` ${i + 1}. ${r.channel} - ROI ${r.roi.toFixed(2)}x on ${r.totalSpend.toFixed(0)} spend (confidence ${(r.confidence * 100).toFixed(0)}%)`);
+      return `Top channels by ROI (Marketing Mix Model, 90-day window):\n` + lines.join("\n");
+    }
+  }
+
+  if (q.includes("reallocate") || q.includes("reallocation") || q.includes("budget shift")) {
+    if (ctx.mmm?.recommendedReallocation?.length) {
+      const lines = ctx.mmm.recommendedReallocation.slice(0, 5).map((r) => ` ${r.channel}: ${(r.currentShare * 100).toFixed(0)}% -> ${(r.recommendedShare * 100).toFixed(0)}% - ${r.reason}`);
+      return `Recommended budget reallocation (Thompson sampling + Ridge):\n` + lines.join("\n") + `\n\nThese are recommendations, not actions. Submit a request to the team to enact.`;
+    }
+  }
+
+  if (q.includes("attribution") || (q.includes("which channel") && q.includes("credit"))) {
+    if (ctx.attribution && Object.keys(ctx.attribution.channelTotals).length) {
+      const sorted = Object.entries(ctx.attribution.channelTotals).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const lines = sorted.map(([ch, credit]) => ` ${ch}: ${(credit * 100).toFixed(1)}%`);
+      return `Multi-touch attribution (Shapley values, ${ctx.attribution.leadsAnalyzed} leads):\n` + lines.join("\n");
+    }
+  }
+
+  return "I'm Adziga Assistant - I can explain KPIs, summarize reports, answer attribution/MMM questions, and clarify terminology using the controlled analytics context I was given. I don't execute changes autonomously; if you need an action taken, please submit a request.";
 }

@@ -3,6 +3,7 @@ import { askAssistantSchema } from "@/server/schemas";
 import { prisma } from "@/lib/db";
 import { cpl, roas } from "@/lib/format";
 import { askAssistant } from "@/lib/ai";
+import { runMMMForOrg, scoreAllLeadsForOrg } from "@/lib/analytics";
 
 export const POST = authedRoute(askAssistantSchema, async (ctx, body) => {
   const where: any = { orgId: ctx.orgId };
@@ -21,6 +22,18 @@ export const POST = authedRoute(askAssistantSchema, async (ctx, body) => {
   const totalLeads = campaigns.reduce((s, c) => s + Number(c.leads), 0);
   const totalCustomers = campaigns.reduce((s, c) => s + Number(c.customers), 0);
   const totalRevenue = campaigns.reduce((s, c) => s + c.revenue, 0);
+
+  // Pull deep analytics in parallel — they are read-only and isolated per org.
+  const [mmm, leadScores] = await Promise.all([
+    runMMMForOrg(ctx.orgId, 90).catch((e) => {
+      console.error("mmm_failed", e);
+      return undefined;
+    }),
+    scoreAllLeadsForOrg(ctx.orgId, 25).catch((e) => {
+      console.error("lead_scoring_failed", e);
+      return [];
+    })
+  ]);
 
   const result = await askAssistant({
     orgId: ctx.orgId,
@@ -51,8 +64,15 @@ export const POST = authedRoute(askAssistantSchema, async (ctx, body) => {
       periodStart: r.periodStart,
       periodEnd: r.periodEnd,
       executiveSummary: r.executiveSummary
-    }))
+    })),
+    mmm,
+    leadScores
   });
 
-  return { response: result.response, model: result.model, latencyMs: result.latencyMs };
+  return {
+    response: result.response,
+    model: result.model,
+    latencyMs: result.latencyMs,
+    analyticsUsed: { mmm: Boolean(mmm), leadScores: leadScores.length }
+  };
 });
