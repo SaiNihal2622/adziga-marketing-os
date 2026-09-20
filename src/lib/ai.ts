@@ -46,10 +46,9 @@ export async function askAssistant(ctx: AIContext): Promise<{
   tokensOut?: number;
 }> {
   const start = Date.now();
-  const model = process.env.GEMINI_API_KEY ? "gemini-stub" : "adziga-stub-v1";
 
   // Build a controlled, structured prompt from ONLY the supplied context.
-  const sections: string[] = [];
+  const sections: string[] = [SYSTEM_PROMPT];
   if (ctx.client) {
     sections.push(`Client: ${ctx.client.businessName} (${ctx.client.industry ?? "industry not set"})`);
   }
@@ -111,8 +110,31 @@ export async function askAssistant(ctx: AIContext): Promise<{
   }
   sections.push(`\nUser question: ${ctx.question}`);
 
-  // Stub implementation: deterministic, traceable, honest about being an assistant.
-  const response = stubAnswer(ctx, sections);
+  // Live LLM if GEMINI_API_KEY set; fall back to deterministic stub otherwise.
+  const geminiKey = process.env.GEMINI_API_KEY;
+  let model = "adziga-stub-v1";
+  let response = "";
+  let tokensIn: number | undefined;
+  let tokensOut: number | undefined;
+
+  if (geminiKey) {
+    try {
+      const r = await callGemini(geminiKey, sections.join("\n\n"));
+      if (r) {
+        model = "gemini-2.5-flash";
+        response = r.text;
+        tokensIn = r.tokensIn;
+        tokensOut = r.tokensOut;
+      }
+    } catch (e) {
+      // Gemini failed — fall back to stub so the user still gets an answer.
+      console.error("gemini_failed", e);
+    }
+  }
+
+  if (!response) {
+    response = stubAnswer(ctx, sections);
+  }
 
   const latencyMs = Date.now() - start;
 
@@ -125,7 +147,10 @@ export async function askAssistant(ctx: AIContext): Promise<{
       context: JSON.stringify({
         clientId: ctx.clientId,
         campaignIds: ctx.campaignIds,
-        kpis: ctx.kpis
+        kpis: ctx.kpis,
+        mmm: ctx.mmm ? { rows: ctx.mmm.rows.length } : null,
+        attribution: ctx.attribution?.leadsAnalyzed ?? null,
+        leadScores: ctx.leadScores?.length ?? 0
       }),
       response,
       model,
@@ -200,4 +225,64 @@ function stubAnswer(ctx: AIContext, sections: string[]): string {
   }
 
   return "I'm Adziga Assistant - I can explain KPIs, summarize reports, answer attribution/MMM questions, and clarify terminology using the controlled analytics context I was given. I don't execute changes autonomously; if you need an action taken, please submit a request.";
+}
+
+/**
+ * Call Gemini 2.5 Flash via REST. Returns null on failure so callers can
+ * fall back to the deterministic stub. 30-second timeout.
+ *
+ * Spec: "AI has controlled access to context". We send the full structured
+ * prompt (system + context + question) — never raw user data or the whole DB.
+ */
+async function callGemini(
+  apiKey: string,
+  prompt: string
+): Promise<{ text: string; tokensIn?: number; tokensOut?: number } | null> {
+  const url =
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 30_000);
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 800,
+          topP: 0.9,
+          topK: 40
+        },
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
+          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_MEDIUM_AND_ABOVE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" }
+        ]
+      }),
+      signal: ctrl.signal
+    });
+    if (!r.ok) {
+      console.error("gemini_http_error", r.status, (await r.text()).slice(0, 200));
+      return null;
+    }
+    const data = (await r.json()) as any;
+    const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("").trim();
+    const usage = data?.usageMetadata;
+    return {
+      text: text || "",
+      tokensIn: usage?.promptTokenCount,
+      tokensOut: usage?.candidatesTokenCount
+    };
+  } catch (e) {
+    console.error("gemini_call_failed", e);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
