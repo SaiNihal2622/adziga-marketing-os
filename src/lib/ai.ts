@@ -111,7 +111,7 @@ export async function askAssistant(ctx: AIContext): Promise<{
   sections.push(`\nUser question: ${ctx.question}`);
 
   // Live LLM if GEMINI_API_KEY set; fall back to deterministic stub otherwise.
-  const geminiKey = process.env.GEMINI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY?.replace(/[^\x20-\x7E]/g, "").trim();
   let model = "adziga-stub-v1";
   let response = "";
   let tokensIn: number | undefined;
