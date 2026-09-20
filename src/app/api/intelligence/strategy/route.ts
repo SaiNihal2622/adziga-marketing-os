@@ -3,13 +3,24 @@ import { requireSession, checkTier } from "@/lib/session";
 import { recommendStrategy, seedBenchmarks } from "@/lib/intelligence/strategy-engine";
 import { prisma } from "@/lib/db";
 import { OrgTier } from "@/lib/constants";
+import { TierRequiredError } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
   let session;
   try { session = await requireSession(); } catch { return NextResponse.json({ error: "unauthorized" }, { status: 401 }); }
 
-  // Strategy Intelligence is ZIGA Plus tier only.
-  checkTier(session.orgTier, OrgTier.ZIGA_PLUS);
+  try {
+    // Strategy Intelligence is ZIGA Plus tier only.
+    checkTier(session.orgTier, OrgTier.ZIGA_PLUS);
+  } catch (e) {
+    if (e instanceof TierRequiredError) {
+      return NextResponse.json(
+        { error: "TIER_REQUIRED", message: `Upgrade to ${e.required} required (current: ${e.current})`, details: { required: e.required, current: e.current, upgradeUrl: "/app/admin/billing" } },
+        { status: 402 }
+      );
+    }
+    throw e;
+  }
 
   const body = await req.json();
   if (!body.industry || !body.objective || !body.monthlyBudget) {
