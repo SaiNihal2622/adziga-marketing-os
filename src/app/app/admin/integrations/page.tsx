@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireRole } from "@/lib/session";
+import { Role } from "@/lib/constants";
 import { PageHeader } from "../../_components/page-header";
 import { StatusPill } from "../../_components/widgets";
 import { relTime } from "@/lib/format";
@@ -7,7 +8,7 @@ import { relTime } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function IntegrationsPage() {
-  const session = await requireSession();
+  const session = await requireRole([Role.FOUNDER, Role.ADMIN]);
   const integrations = await prisma.integration.findMany({
     where: { orgId: session.orgId },
     orderBy: { provider: "asc" }

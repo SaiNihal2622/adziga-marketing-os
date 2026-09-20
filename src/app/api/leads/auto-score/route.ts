@@ -23,8 +23,10 @@ export const POST = authedRoute(leadScoringSchema, async (ctx, body) => {
   return { scored: results.length, results };
 });
 
-export const GET = authedRoute(null, async () => {
+export const GET = authedRoute(null, async (ctx) => {
+  // Org-scoped: LeadScore has orgId directly (no relation filter needed).
   const scores = await prisma.leadScore.findMany({
+    where: { orgId: ctx.orgId },
     orderBy: { computedAt: "desc" },
     take: 50
   });

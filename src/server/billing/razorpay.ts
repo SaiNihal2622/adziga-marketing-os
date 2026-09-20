@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { prisma } from "@/lib/db";
 import { logger } from "@/server/logger";
 import { IntegrationError, NotFoundError, ConflictError } from "@/server/errors";
+import { reserveNextInvoiceNumber } from "./invoice-number";
 
 const RAZORPAY_API = "https://api.razorpay.com/v1";
 
@@ -197,19 +198,32 @@ export async function handleRazorpayEvent(eventType: string, payload: any): Prom
           where: { orgId },
           data: { status: "active", plan }
         });
+        const prev = await prisma.organization.findUnique({ where: { id: orgId }, select: { tier: true } });
         await prisma.organization.update({ where: { id: orgId }, data: { tier: plan as any } });
+        // Audit tier change — important for SOC2/GST compliance.
+        await prisma.auditLog.create({
+          data: {
+            orgId,
+            action: "billing.tier_changed",
+            entityType: "Organization",
+            entityId: orgId,
+            before: JSON.stringify({ tier: prev?.tier }),
+            after: JSON.stringify({ tier: plan, source: "razorpay", eventType })
+          }
+        });
       }
     } else if (eventType === "subscription.charged" || eventType === "invoice.paid") {
       if (orgId) {
-        // Generate invoice record
+        // Generate invoice record with GST-compliant sequential numbering.
         const amount = (payload.payment?.amount ?? payload.amount ?? 0) / 100;
         const periodStart = new Date();
         const periodEnd = new Date(Date.now() + 30 * 86400_000);
-        const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        await prisma.invoice.create({
+        const subscriptionId = (await prisma.subscription.findUnique({ where: { orgId } }))?.id;
+        const { number: invoiceNumber, financialYear } = await reserveNextInvoiceNumber(prisma, orgId);
+        const invoice = await prisma.invoice.create({
           data: {
             orgId,
-            subscriptionId: (await prisma.subscription.findUnique({ where: { orgId } }))?.id,
+            subscriptionId,
             number: invoiceNumber,
             status: "PAID",
             amount,
@@ -217,7 +231,17 @@ export async function handleRazorpayEvent(eventType: string, payload: any): Prom
             periodStart,
             periodEnd,
             paidAt: new Date(),
-            providerInvoiceId: payload.payment_id ?? payload.id
+            providerInvoiceId: payload.payment_id ?? payload.id,
+            notes: JSON.stringify({ financialYear, plan })
+          }
+        });
+        await prisma.auditLog.create({
+          data: {
+            orgId,
+            action: "billing.invoice.created",
+            entityType: "Invoice",
+            entityId: invoice.id,
+            after: JSON.stringify({ number: invoiceNumber, amount, financialYear })
           }
         });
       }
@@ -228,6 +252,15 @@ export async function handleRazorpayEvent(eventType: string, payload: any): Prom
           data: { status: "canceled", canceledAt: new Date() }
         });
         // Don't downgrade immediately — grace period handled elsewhere
+        await prisma.auditLog.create({
+          data: {
+            orgId,
+            action: "billing.subscription.cancelled",
+            entityType: "Subscription",
+            entityId: orgId,
+            after: JSON.stringify({ source: "razorpay", eventType })
+          }
+        });
       }
     } else if (eventType === "payment.failed") {
       if (orgId) {
@@ -236,6 +269,15 @@ export async function handleRazorpayEvent(eventType: string, payload: any): Prom
           template: "payment_failed",
           variables: { plan, amount: (payload.payment?.amount ?? 0) / 100, appUrl: process.env.APP_URL ?? "https://app.adziga.in" }
         }).catch(() => null);
+        await prisma.auditLog.create({
+          data: {
+            orgId,
+            action: "billing.payment.failed",
+            entityType: "PaymentEvent",
+            entityId: eventId,
+            after: JSON.stringify({ plan, amount: (payload.payment?.amount ?? 0) / 100 })
+          }
+        });
       }
     }
 

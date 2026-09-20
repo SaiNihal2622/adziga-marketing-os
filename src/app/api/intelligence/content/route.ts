@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/session";
+import { requireSession, checkTier } from "@/lib/session";
 import { recomputeContentPatterns, suggestCreative } from "@/lib/intelligence/content-engine";
 import { prisma } from "@/lib/db";
+import { OrgTier } from "@/lib/constants";
 
 export async function GET() {
+  let session;
+  try { session = await requireSession(); } catch { return NextResponse.json({ error: "unauthorized" }, { status: 401 }); }
+  // Content Intelligence is PRO+ tier, and patterns are org-scoped (per-org learning).
+  checkTier(session.orgTier, OrgTier.PRO);
   const patterns = await prisma.contentPattern.findMany({
+    where: { orgId: session.orgId },
     orderBy: [{ confidence: "desc" }, { roas: "desc" }],
     take: 200
   });
@@ -14,6 +20,7 @@ export async function GET() {
 export async function POST(req: Request) {
   let session;
   try { session = await requireSession(); } catch { return NextResponse.json({ error: "unauthorized" }, { status: 401 }); }
+  checkTier(session.orgTier, OrgTier.PRO);
   const body = await req.json();
 
   if (body.action === "recompute") {

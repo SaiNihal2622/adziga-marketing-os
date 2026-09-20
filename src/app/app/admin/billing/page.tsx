@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireRole } from "@/lib/session";
+import { Role } from "@/lib/constants";
 import { fmtDate, fmtINR } from "@/lib/format";
 import { PLAN_DEFINITIONS } from "@/server/billing/razorpay";
 import { PageHeader } from "../../_components/page-header";
@@ -132,7 +133,7 @@ function VisaMark() {
 // ──────────────────────────────────────────────────────────────────────────
 
 export default async function BillingPage() {
-  const session = await requireSession();
+  const session = await requireRole([Role.FOUNDER, Role.ADMIN, Role.FINANCE]);
   const currentTierId = (session.orgTier as TierId) ?? "FREE";
   const currentTier = TIERS.find((t) => t.id === currentTierId) ?? TIERS[0];
 

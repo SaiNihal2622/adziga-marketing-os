@@ -25,6 +25,21 @@ model Organization {
   website          String?
   logoUrl          String?
   isAdzigaInternal Boolean  @default(false)
+
+  // India billing / GST fields (optional — only required if org is GST-registered and invoiced)
+  gstin            String?  // 15-char Goods & Services Tax Identification Number
+  pan              String?  // 10-char PAN for TDS / invoicing
+  billingAddress   String?
+  billingCity      String?
+  billingState     String?
+  billingPincode   String?
+  billingCountry   String?  @default("IN")
+
+  // Sequential invoice numbering (India GST requirement: never reuse, contiguous)
+  invoiceCounter   Int      @default(0)
+  invoicePrefix    String?  @default("INV")  // customizable prefix; default INV
+  financialYear    String?  // "2026-27" — auto-set on first invoice each April
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

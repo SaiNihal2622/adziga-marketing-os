@@ -369,7 +369,12 @@ export default function MarketingHome() {
           </div>
           <div className="pt-8 border-t border-ink-100 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-500">
             <div>© {new Date().getFullYear()} Adziga · Built in India · All rights reserved.</div>
-            <div>Made for marketing teams who ship.</div>
+            <div className="flex items-center gap-4">
+              <Link href="/legal/terms" className="hover:text-ink-900">Terms</Link>
+              <Link href="/legal/privacy" className="hover:text-ink-900">Privacy</Link>
+              <Link href="/legal/refund" className="hover:text-ink-900">Refund</Link>
+              <span>Made for marketing teams who ship.</span>
+            </div>
           </div>
         </div>
       </footer>

@@ -199,9 +199,13 @@ export async function generateOrchestrationPlan(goal: OrchestrationGoal): Promis
 /**
  * Move plan through approval workflow.
  */
-export async function transitionPlan(planId: string, to: string, approverId?: string): Promise<void> {
-  const plan = await prisma.orchestrationPlan.findUnique({ where: { id: planId } });
+export async function transitionPlan(planId: string, to: string, approverId?: string, orgId?: string): Promise<void> {
+  // Org-scoped lookup: refuse to transition a plan that doesn't belong to the caller's org.
+  const plan = await prisma.orchestrationPlan.findFirst({
+    where: orgId ? { id: planId, orgId } : { id: planId }
+  });
   if (!plan) throw new Error("plan not found");
+  if (orgId && plan.orgId !== orgId) throw new Error("plan not found");
 
   const data: any = { status: to };
   if (to === "CLIENT_APPROVAL" && approverId) data.internalReviewerId = approverId, data.internalReviewedAt = new Date();
@@ -227,9 +231,12 @@ export async function transitionPlan(planId: string, to: string, approverId?: st
  * Deploy an approved plan - create real Campaign + Creative rows from the PlanCampaign entries.
  * This is the "EXECUTE" step (only allowed after APPROVED status).
  */
-export async function deployPlan(planId: string): Promise<{ deployed: number; errors: string[] }> {
-  const plan = await prisma.orchestrationPlan.findUnique({ where: { id: planId } });
+export async function deployPlan(planId: string, orgId?: string): Promise<{ deployed: number; errors: string[] }> {
+  const plan = await prisma.orchestrationPlan.findFirst({
+    where: orgId ? { id: planId, orgId } : { id: planId }
+  });
   if (!plan) throw new Error("plan not found");
+  if (orgId && plan.orgId !== orgId) throw new Error("plan not found");
   if (plan.status !== "APPROVED") throw new Error(`Plan must be APPROVED (currently ${plan.status})`);
 
   const planCamps = await prisma.planCampaign.findMany({ where: { planId }, orderBy: { order: "asc" } });

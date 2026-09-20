@@ -1,12 +1,14 @@
 import { prisma } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireRole } from "@/lib/session";
+import { Role } from "@/lib/constants";
 import { PageHeader } from "../_components/page-header";
 import { fmtDateTime, relTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function AuditPage() {
-  const session = await requireSession();
+  // Audit log is sensitive — only FOUNDER/ADMIN/Compliance roles can see it.
+  const session = await requireRole([Role.FOUNDER, Role.ADMIN]);
   const logs = await prisma.auditLog.findMany({
     where: { orgId: session.orgId },
     orderBy: { createdAt: "desc" },

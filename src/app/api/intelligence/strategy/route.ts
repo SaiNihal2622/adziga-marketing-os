@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSession } from "@/lib/session";
+import { requireSession, checkTier } from "@/lib/session";
 import { recommendStrategy, seedBenchmarks } from "@/lib/intelligence/strategy-engine";
 import { prisma } from "@/lib/db";
+import { OrgTier } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
   let session;
   try { session = await requireSession(); } catch { return NextResponse.json({ error: "unauthorized" }, { status: 401 }); }
+
+  // Strategy Intelligence is ZIGA Plus tier only.
+  checkTier(session.orgTier, OrgTier.ZIGA_PLUS);
 
   const body = await req.json();
   if (!body.industry || !body.objective || !body.monthlyBudget) {
@@ -29,7 +33,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
+  let session;
+  try { session = await requireSession(); } catch { return NextResponse.json({ error: "unauthorized" }, { status: 401 }); }
+  // Org-scoped — was returning all orgs' recommendations before.
   const recs = await prisma.strategyRecommendation.findMany({
+    where: { orgId: session.orgId },
     orderBy: { createdAt: "desc" },
     take: 30
   });

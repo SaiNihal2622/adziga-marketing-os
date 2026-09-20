@@ -3,13 +3,16 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { ZodSchema, ZodError } from "zod";
-import { requireSession, audit } from "@/lib/session";
+import { requireSession, audit, TierRequiredError } from "@/lib/session";
 import { AppError, isAppError, UnauthorizedError } from "./errors";
 import { logger } from "./logger";
+import type { OrgTier, Role } from "@/lib/constants";
 
 export type ApiContext = {
   userId: string;
   orgId: string;
+  orgTier: OrgTier;
+  role: Role;
   req: NextRequest;
 };
 
@@ -39,6 +42,8 @@ export function authedRoute<P, R = unknown>(
     const ctx: ApiContext = {
       userId: (session as any).userId,
       orgId: (session as any).orgId,
+      orgTier: (session as any).orgTier,
+      role: (session as any).role,
       req
     };
 
@@ -102,6 +107,16 @@ export function errorResponse(e: unknown): NextResponse {
     return NextResponse.json(
       { error: e.code, message: e.message, details: e.details },
       { status: e.statusCode }
+    );
+  }
+  if (e instanceof TierRequiredError) {
+    return NextResponse.json(
+      {
+        error: "TIER_REQUIRED",
+        message: `Upgrade to ${e.required} required (current: ${e.current})`,
+        details: { required: e.required, current: e.current, upgradeUrl: "/app/admin/billing" }
+      },
+      { status: 402 }
     );
   }
   if (e instanceof ZodError) {

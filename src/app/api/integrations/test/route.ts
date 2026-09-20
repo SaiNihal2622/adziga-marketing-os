@@ -3,12 +3,17 @@ import { z } from "zod";
 import { authedRoute } from "@/server/api";
 import { getConnector, getAllConnectors } from "@/server/integrations/registry";
 import { prisma } from "@/lib/db";
+import { OrgTier } from "@/lib/constants";
+import { checkTier } from "@/lib/session";
 
 const schema = z.object({
   provider: z.string().optional()
 });
 
 export const POST = authedRoute(schema, async (ctx, body) => {
+  // Integrations (Meta/Google/WhatsApp) require PRO tier.
+  checkTier(ctx.orgTier, OrgTier.PRO);
+
   const providers = body.provider ? [body.provider] : Object.keys(getAllConnectors());
   const results: any[] = [];
   for (const p of providers) {

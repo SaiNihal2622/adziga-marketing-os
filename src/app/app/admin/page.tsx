@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { requireSession } from "@/lib/session";
+import { requireRole } from "@/lib/session";
+import { Role } from "@/lib/constants";
 import { PageHeader } from "../_components/page-header";
 import { StatusPill } from "../_components/widgets";
 import { fmtINR, fmtNum, fmtDate, relTime } from "@/lib/format";
@@ -8,7 +9,8 @@ import { fmtINR, fmtNum, fmtDate, relTime } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  const session = await requireSession();
+  // Admin surfaces are FOUNDER+ only. Marketing managers and client users cannot reach them.
+  const session = await requireRole([Role.FOUNDER, Role.ADMIN]);
   const [
     activeClients,
     runningCampaigns,
