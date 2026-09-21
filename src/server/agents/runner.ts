@@ -59,50 +59,65 @@ async function callGeminiForAgent(opts: {
     parameters: t.inputSchema as any
   }));
 
-  const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 45_000);
-  try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": cleanedKey },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: opts.systemPrompt }] },
-          contents,
-          tools: [{ functionDeclarations }],
-          generationConfig: { temperature: 0.4, maxOutputTokens: 1200, topP: 0.9 }
-        }),
-        signal: ctrl.signal
+  // Retry with exponential backoff on 503 (Gemini rate limits) and 429
+  const maxAttempts = 3;
+  let lastError: any = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 45_000);
+    try {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": cleanedKey },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: opts.systemPrompt }] },
+            contents,
+            tools: [{ functionDeclarations }],
+            generationConfig: { temperature: 0.4, maxOutputTokens: 1200, topP: 0.9 }
+          }),
+          signal: ctrl.signal
+        }
+      );
+      if (r.status === 503 || r.status === 429) {
+        const err = await r.text();
+        lastError = { status: r.status, body: err.slice(0, 200) };
+        clearTimeout(timeout);
+        // Wait 2^attempt seconds before retrying
+        await new Promise((res) => setTimeout(res, Math.min(2000 * Math.pow(2, attempt), 8000)));
+        continue;
       }
-    );
-    if (!r.ok) {
-      const err = await r.text();
-      console.error("gemini_agent_http_error", r.status, err.slice(0, 500));
+      if (!r.ok) {
+        const err = await r.text();
+        console.error("gemini_agent_http_error", r.status, err.slice(0, 500));
+        return { text: null, toolCalls: [] };
+      }
+      const data = (await r.json()) as any;
+      if (!data?.candidates?.[0]?.content?.parts?.length) {
+        console.error("gemini_agent_empty", JSON.stringify(data).slice(0, 500));
+        return { text: null, toolCalls: [] };
+      }
+      const parts = data?.candidates?.[0]?.content?.parts ?? [];
+      const text = parts.find((p: any) => p.text)?.text ?? null;
+      const toolCalls: GeminiFunctionCall[] = parts
+        .filter((p: any) => p.functionCall)
+        .map((p: any) => ({ name: p.functionCall.name, args: p.functionCall.args ?? {} }));
+      return {
+        text,
+        toolCalls,
+        tokensIn: data?.usageMetadata?.promptTokenCount,
+        tokensOut: data?.usageMetadata?.candidatesTokenCount
+      };
+    } catch (e) {
+      console.error("gemini_agent_failed", e);
       return { text: null, toolCalls: [] };
+    } finally {
+      clearTimeout(timeout);
     }
-    const data = (await r.json()) as any;
-    if (!data?.candidates?.[0]?.content?.parts?.length) {
-      console.error("gemini_agent_empty", JSON.stringify(data).slice(0, 500));
-      return { text: null, toolCalls: [] };
-    }
-    const parts = data?.candidates?.[0]?.content?.parts ?? [];
-    const text = parts.find((p: any) => p.text)?.text ?? null;
-    const toolCalls: GeminiFunctionCall[] = parts
-      .filter((p: any) => p.functionCall)
-      .map((p: any) => ({ name: p.functionCall.name, args: p.functionCall.args ?? {} }));
-    return {
-      text,
-      toolCalls,
-      tokensIn: data?.usageMetadata?.promptTokenCount,
-      tokensOut: data?.usageMetadata?.candidatesTokenCount
-    };
-  } catch (e) {
-    console.error("gemini_agent_failed", e);
-    return { text: null, toolCalls: [] };
-  } finally {
-    clearTimeout(timeout);
   }
+  console.error("gemini_agent_exhausted", lastError);
+  return { text: null, toolCalls: [] };
 }
 
 // ──────────────────────────────────────────────────────────────────────────
