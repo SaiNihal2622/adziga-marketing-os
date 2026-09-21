@@ -331,3 +331,104 @@ export const searchQuerySchema = z.object({
 export const runJobSchema = z.object({
   name: z.enum(["automations.tick", "campaign.health_check", "intelligence.recompute", "integration.health_check"])
 });
+
+// â”€â”€â”€ Creatives library â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export const creativeFormatSchema = z.enum([
+  "IMAGE",
+  "VIDEO",
+  "CAROUSEL",
+  "STORY",
+  "REEL",
+  "TEXT",
+  "UGC",
+  "AUDIO"
+]);
+
+export const creativePlatformSchema = z.enum([
+  "META",
+  "GOOGLE",
+  "WHATSAPP",
+  "EMAIL",
+  "INFLUENCER",
+  "LINKEDIN",
+  "YOUTUBE",
+  "INSTAGRAM",
+  "TWITTER",
+  "EVENT",
+  "GENERIC"
+]);
+
+export const creativeSourceSchema = z.enum([
+  "AI_GENERATED", // produced by Gemini / image model in our pipeline
+  "CLIENT_UPLOAD", // uploaded by the client
+  "DESIGNER",      // uploaded by an Adziga designer or freelancer
+  "STOCK",         // licensed stock asset
+  "USER_TEMPLATE"  // built from a template by the team
+]);
+
+export const createCreativeV2Schema = z.object({
+  campaignId: cuidSchema.optional(),
+  clientId: cuidSchema.optional(),
+  name: z.string().min(1).max(200),
+  format: creativeFormatSchema,
+  platform: creativePlatformSchema,
+  hook: z.string().max(400).optional(),
+  headline: z.string().max(200).optional(),
+  primaryCopy: z.string().max(4000).optional(),
+  cta: z.string().max(80).optional(),
+  audience: z.string().max(200).optional(),
+  source: creativeSourceSchema.default("CLIENT_UPLOAD"),
+  creator: z.string().max(120).optional(),
+  mediaUrl: z.string().url().optional(),
+  thumbnailUrl: z.string().url().optional()
+});
+
+export const updateCreativeSchema = createCreativeV2Schema.partial();
+
+export const creativeStatusSchema = z.enum([
+  "DRAFT",
+  "IN_REVIEW",
+  "APPROVED",
+  "ACTIVE",
+  "PAUSED",
+  "ARCHIVED"
+]);
+
+export const creativeTransitionSchema = z.object({
+  to: creativeStatusSchema,
+  note: z.string().max(1000).optional()
+});
+
+export const listCreativesSchema = z.object({
+  campaignId: cuidSchema.optional(),
+  clientId: cuidSchema.optional(),
+  status: creativeStatusSchema.optional(),
+  format: creativeFormatSchema.optional(),
+  platform: creativePlatformSchema.optional(),
+  source: creativeSourceSchema.optional(),
+  q: z.string().max(200).optional(),
+  take: z.coerce.number().int().min(1).max(200).default(50),
+  cursor: z.string().optional()
+});
+
+// AI generation: caption + image
+export const generateCopySchema = z.object({
+  campaignId: cuidSchema.optional(),
+  clientId: cuidSchema.optional(),
+  platform: creativePlatformSchema.default("META"),
+  format: creativeFormatSchema.default("IMAGE"),
+  brief: z.string().min(5).max(1000), // e.g. "5 captions for bridal saree Instagram carousel"
+  tone: z.enum(["luxury", "playful", "trustworthy", "bold", "educational", "urgent"]).default("luxury"),
+  count: z.coerce.number().int().min(1).max(10).default(3)
+});
+
+export const generateImageSchema = z.object({
+  campaignId: cuidSchema.optional(),
+  clientId: cuidSchema.optional(),
+  platform: creativePlatformSchema.default("META"),
+  brief: z.string().min(5).max(1000), // what the image should depict
+  style: z.enum(["photoreal", "studio", "lifestyle", "ugc_phone_shot", "flat_lay", "infographic"]).default("studio"),
+  aspectRatio: z.enum(["1:1", "4:5", "9:16", "16:9"]).default("1:1")
+});
+

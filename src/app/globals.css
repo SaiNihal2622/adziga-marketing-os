@@ -325,6 +325,8 @@ html, body {
 /* Pill button — rounded-md used in v0 templates */
 .pill { @apply rounded-md; }
 .pill-lg { @apply rounded-lg; }
+.pill-active { @apply bg-brand-50 text-brand-700 ring-1 ring-brand-200 px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1.5 hover:bg-brand-100 transition-colors; }
+.pill-inactive { @apply bg-ink-50 text-ink-600 ring-1 ring-ink-200 px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1.5 hover:bg-ink-100 hover:text-ink-900 transition-colors; }
 
 /* Avatar circle helper */
 .avatar {

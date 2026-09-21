@@ -1,160 +1,145 @@
-import { notFound } from "next/navigation";
+// /app/creatives/[id] — creative detail with status workflow
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireSession, audit } from "@/lib/session";
-import { PageHeader } from "../../_components/page-header";
-import { StatusPill } from "../../_components/widgets";
-import { fmtINR, fmtNum, fmtPct, cpl, roas } from "@/lib/format";
-import { PLATFORM_LABELS, CREATIVE_STATUS_LABELS } from "@/lib/constants";
+import { getSession } from "@/lib/session";
+import { CreativeActions } from "./_actions";
 
 export const dynamic = "force-dynamic";
 
-async function updateCreative(formData: FormData) {
-  "use server";
-  const session = await requireSession();
-  const id = String(formData.get("id"));
-  const c = await prisma.creative.findFirst({ where: { id, orgId: session.orgId } });
-  if (!c) return;
-  const data = {
-    hook: String(formData.get("hook") ?? "") || null,
-    headline: String(formData.get("headline") ?? "") || null,
-    primaryCopy: String(formData.get("primaryCopy") ?? "") || null,
-    cta: String(formData.get("cta") ?? "") || null,
-    creator: String(formData.get("creator") ?? "") || null,
-    audience: String(formData.get("audience") ?? "") || null
-  };
-  await prisma.creative.update({ where: { id }, data });
-  await audit(session.orgId, session.userId, "creative.update", { entityType: "Creative", entityId: id, after: data });
-}
+const STATUS_TINT: Record<string, string> = {
+  DRAFT: "bg-ink-100 text-ink-700 ring-ink-200",
+  IN_REVIEW: "bg-amber-50 text-amber-700 ring-amber-200",
+  APPROVED: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  ACTIVE: "bg-brand-50 text-brand-700 ring-brand-200",
+  PAUSED: "bg-orange-50 text-orange-700 ring-orange-200",
+  ARCHIVED: "bg-ink-50 text-ink-500 ring-ink-200"
+};
 
-async function transition(formData: FormData) {
-  "use server";
-  const session = await requireSession();
-  const id = String(formData.get("id"));
-  const to = String(formData.get("to"));
-  const c = await prisma.creative.findFirst({ where: { id, orgId: session.orgId } });
-  if (!c) return;
-  await prisma.creative.update({ where: { id }, data: { status: to } });
-  await audit(session.orgId, session.userId, "creative.status_change", { entityType: "Creative", entityId: id, after: { status: to } });
-}
+const ALLOWED: Record<string, string[]> = {
+  DRAFT: ["IN_REVIEW", "ARCHIVED"],
+  IN_REVIEW: ["APPROVED", "DRAFT"],
+  APPROVED: ["ACTIVE", "DRAFT"],
+  ACTIVE: ["PAUSED", "ARCHIVED"],
+  PAUSED: ["ACTIVE", "ARCHIVED"],
+  ARCHIVED: ["DRAFT"]
+};
 
-export default async function CreativeDetail({ params }: { params: { id: string } }) {
-  const session = await requireSession();
-  const c = await prisma.creative.findFirst({
+export default async function CreativeDetailPage({ params }: { params: { id: string } }) {
+  const session = await getSession();
+  if (!session) return null;
+
+  const creative = await prisma.creative.findFirst({
     where: { id: params.id, orgId: session.orgId },
-    include: { campaign: { include: { client: true } } }
+    include: {
+      campaign: { include: { client: true } }
+    }
   });
-  if (!c) notFound();
-
-  const transitions = nextStatesFor(c.status);
+  if (!creative) notFound();
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={c.name}
-        subtitle={`${c.format} - ${PLATFORM_LABELS[c.platform as keyof typeof PLATFORM_LABELS] ?? c.platform}${c.campaign ? ` - ${c.campaign.client.businessName}` : ""}`}
-        breadcrumbs={[{ label: "Creatives", href: "/app/creatives" }, { label: c.name }]}
-        right={
-          <>
-            <StatusPill status={c.status} />
-            {transitions.map((t) => (
-              <form action={transition} key={t}>
-                <input type="hidden" name="id" value={c.id} />
-                <input type="hidden" name="to" value={t} />
-                <button className="btn btn-secondary btn-sm">{CREATIVE_STATUS_LABELS[t as keyof typeof CREATIVE_STATUS_LABELS] ?? t}</button>
-              </form>
-            ))}
-          </>
-        }
-      />
-
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-        <Kpi label="Impressions" value={fmtNum(c.impressions)} />
-        <Kpi label="Reach" value={fmtNum(c.reach)} />
-        <Kpi label="Spend" value={fmtINR(c.spend)} />
-        <Kpi label="CTR" value={fmtPct(c.ctr)} />
-        <Kpi label="CPC" value={fmtINR(c.cpc)} />
-        <Kpi label="CPL" value={fmtINR(c.cpl)} />
-        <Kpi label="Leads" value={fmtNum(c.leads)} />
-        <Kpi label="Conversions" value={fmtNum(c.conversions)} />
-        <Kpi label="Revenue" value={fmtINR(c.revenue)} />
-        <Kpi label="ROAS" value={c.spend > 0 ? `${roas(c.revenue, c.spend).toFixed(2)}x` : "-"} />
-        <Kpi label="Version" value={`v${c.version}`} />
-        <Kpi label="Audience" value={c.audience ?? "-"} />
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-4">
-        <form action={updateCreative} className="card p-5 lg:col-span-2 space-y-4">
-          <input type="hidden" name="id" value={c.id} />
-          <Field label="Hook (first 3 sec / opening line)" name="hook" defaultValue={c.hook ?? ""} textarea />
-          <Field label="Headline" name="headline" defaultValue={c.headline ?? ""} />
-          <Field label="Primary copy" name="primaryCopy" defaultValue={c.primaryCopy ?? ""} textarea />
-          <Field label="CTA" name="cta" defaultValue={c.cta ?? ""} />
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Creator" name="creator" defaultValue={c.creator ?? ""} />
-            <Field label="Audience" name="audience" defaultValue={c.audience ?? ""} />
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2 text-xs text-ink-500 mb-1">
+            <Link href="/app/creatives" className="hover:text-ink-900">Creatives</Link>
+            <span>›</span>
+            <span>v{creative.version}</span>
           </div>
-          <div className="flex justify-end">
-            <button className="btn btn-primary btn-sm">Save</button>
+          <h1 className="text-2xl font-bold tracking-tight">{creative.name}</h1>
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide ring-1 ${STATUS_TINT[creative.status]}`}>
+              {creative.status.replace("_", " ")}
+            </span>
+            <span className="px-2 py-0.5 rounded bg-ink-100 text-ink-700 text-xs font-medium">{creative.platform}</span>
+            <span className="px-2 py-0.5 rounded bg-ink-100 text-ink-700 text-xs font-medium">{creative.format}</span>
+            <span className="px-2 py-0.5 rounded bg-ink-100 text-ink-700 text-xs font-medium">{creative.source.replace("_", " ")}</span>
+            {creative.campaign && (
+              <Link href={`/app/campaigns/${creative.campaign.id}`} className="text-xs text-brand-600 hover:underline">
+                {creative.campaign.client.businessName} · {creative.campaign.name}
+              </Link>
+            )}
           </div>
-        </form>
+        </div>
+        <CreativeActions creativeId={creative.id} currentStatus={creative.status} allowed={ALLOWED[creative.status] ?? []} />
+      </header>
 
-        <div className="card p-5 space-y-3">
-          <h3 className="text-sm font-semibold text-ink-700">Metadata</h3>
-          <Row label="Format" value={c.format} />
-          <Row label="Platform" value={c.platform} />
-          <Row label="Status" value={<StatusPill status={c.status} />} />
-          <Row label="Version" value={`v${c.version}`} />
-          <Row label="Campaign" value={c.campaign ? <Link href={`/app/campaigns/${c.campaign.id}`} className="text-brand-600 hover:underline">{c.campaign.name}</Link> : "-"} />
-          {c.thumbnailUrl && (
-            <div className="pt-2 border-t border-ink-100">
-              <img src={c.thumbnailUrl} alt={c.name} className="rounded mt-1 w-full" />
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Media preview */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="card-v0 p-4">
+            <div className="aspect-square lg:aspect-video bg-gradient-to-br from-ink-50 to-ink-100 rounded-lg overflow-hidden flex items-center justify-center">
+              {creative.mediaUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={creative.mediaUrl} alt={creative.name} className="w-full h-full object-contain" />
+              ) : (
+                <div className="text-ink-400 text-sm">No media yet — upload or generate an image.</div>
+              )}
             </div>
-          )}
+          </div>
+
+          <div className="card-v0 p-5 space-y-3">
+            <h2 className="font-semibold text-sm">Copy</h2>
+            {creative.hook && (
+              <div>
+                <div className="text-xs font-medium text-ink-500 mb-0.5">Hook</div>
+                <p className="text-sm font-semibold text-brand-700">"{creative.hook}"</p>
+              </div>
+            )}
+            {creative.headline && (
+              <div>
+                <div className="text-xs font-medium text-ink-500 mb-0.5">Headline</div>
+                <h3 className="text-lg font-bold text-ink-900">{creative.headline}</h3>
+              </div>
+            )}
+            {creative.primaryCopy && (
+              <div>
+                <div className="text-xs font-medium text-ink-500 mb-0.5">Body</div>
+                <p className="text-sm text-ink-700 whitespace-pre-wrap">{creative.primaryCopy}</p>
+              </div>
+            )}
+            {creative.cta && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-ink-500">CTA:</span>
+                <span className="inline-flex items-center px-3 py-1.5 rounded-md bg-brand-500 text-white text-sm font-semibold">{creative.cta}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Metadata sidebar */}
+        <div className="space-y-4">
+          <div className="card-v0 p-5 space-y-3">
+            <h2 className="font-semibold text-sm">Details</h2>
+            <Meta label="Source" value={creative.source.replace("_", " ")} />
+            {creative.creator && <Meta label="Creator" value={creative.creator} />}
+            {creative.audience && <Meta label="Audience" value={creative.audience} />}
+            <Meta label="Version" value={`v${creative.version}`} />
+            <Meta label="Created" value={creative.createdAt.toLocaleString()} />
+            <Meta label="Updated" value={creative.updatedAt.toLocaleString()} />
+          </div>
+
+          {/* Workflow hint */}
+          <div className="card-v0 p-5 bg-gradient-to-br from-brand-50 to-accent-50">
+            <h2 className="font-semibold text-sm mb-2">Workflow</h2>
+            <ol className="text-xs space-y-1.5 text-ink-700">
+              <li className={creative.status === "DRAFT" ? "font-bold text-brand-700" : ""}>1. DRAFT — write it, generate it, or upload it</li>
+              <li className={creative.status === "IN_REVIEW" ? "font-bold text-brand-700" : ""}>2. IN_REVIEW — your team's eyes on it</li>
+              <li className={creative.status === "APPROVED" ? "font-bold text-brand-700" : ""}>3. APPROVED — ready to go live</li>
+              <li className={creative.status === "ACTIVE" ? "font-bold text-brand-700" : ""}>4. ACTIVE — running on a campaign</li>
+            </ol>
+          </div>
         </div>
       </div>
-
-      <div className="card p-4 bg-ink-50 border-ink-200 text-xs text-ink-600">
-        <strong>Future intelligence:</strong> Every creative field here (hook, headline, copy, CTA, format,
-        platform, audience) becomes input to the Phase 3 Content Intelligence engine.
-      </div>
     </div>
   );
 }
 
-function Field({ label, name, defaultValue, textarea }: any) {
+function Meta({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <label className="label">{label}</label>
-      {textarea ? <textarea name={name} defaultValue={defaultValue} rows={3} className="input" /> : <input name={name} defaultValue={defaultValue} className="input" />}
+    <div className="flex justify-between gap-2 text-xs">
+      <span className="text-ink-500">{label}</span>
+      <span className="text-ink-900 text-right font-medium truncate">{value}</span>
     </div>
   );
-}
-function Row({ label, value }: any) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <div className="text-ink-500">{label}</div>
-      <div className="font-medium">{value}</div>
-    </div>
-  );
-}
-function Kpi({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="card p-4">
-      <div className="kpi-label">{label}</div>
-      <div className="kpi-value text-lg">{value}</div>
-    </div>
-  );
-}
-
-function nextStatesFor(s: string): string[] {
-  const map: Record<string, string[]> = {
-    DRAFT: ["REVIEW"],
-    REVIEW: ["APPROVED", "DRAFT"],
-    APPROVED: ["ACTIVE"],
-    ACTIVE: ["PAUSED"],
-    PAUSED: ["ACTIVE", "ARCHIVED"],
-    ARCHIVED: []
-  };
-  return map[s] ?? [];
 }

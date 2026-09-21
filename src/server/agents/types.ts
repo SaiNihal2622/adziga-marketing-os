@@ -310,6 +310,178 @@ export const creativeTools: ToolSpec[] = [
         }
       };
     }
+  },
+  {
+    name: "creative.generateCopy",
+    description:
+      "Generate platform-aware ad copy (hook, headline, body, CTA) using Gemini. Returns multiple variants; pick one to persist via creative.create.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        brief: { type: "string", description: "What the copy should achieve and for whom" },
+        platform: { type: "string", enum: ["META", "GOOGLE", "WHATSAPP", "EMAIL", "INFLUENCER", "LINKEDIN", "YOUTUBE", "INSTAGRAM", "GENERIC"] },
+        format: { type: "string", enum: ["IMAGE", "VIDEO", "CAROUSEL", "STORY", "REEL", "TEXT", "UGC", "AUDIO"] },
+        tone: { type: "string", enum: ["luxury", "playful", "trustworthy", "bold", "educational", "urgent"] },
+        count: { type: "number", default: 3 },
+        campaignId: { type: "string" },
+        clientId: { type: "string" }
+      },
+      required: ["brief"]
+    },
+    requires: "creative.create",
+    handler: async (input, ctx) => {
+      if (!ctx.can("creative.create")) return { ok: false, error: "permission denied: creative.create" };
+      const apiKey = process.env.GEMINI_API_KEY?.replace(/[^\x20-\x7E]/g, "").trim();
+      const variants: Array<{ name: string; hook: string; headline: string; primaryCopy: string; cta: string }> = [];
+      const sysPrompt = `You are a senior copywriter at Adziga. Match the requested tone, return ${input.count ?? 3} distinct variants. Each: name (≤60), hook (≤80), headline (≤60), primaryCopy (≤800), cta (≤24). Platform: ${input.platform}. Format: ${input.format}. Tone: ${input.tone ?? "luxury"}. Return JSON {variants: [...]}.`;
+      if (apiKey) {
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 45_000);
+          try {
+            const r = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+                body: JSON.stringify({
+                  systemInstruction: { parts: [{ text: sysPrompt }] },
+                  contents: [{ role: "user", parts: [{ text: `Brief: ${input.brief}` }] }],
+                  generationConfig: { temperature: 0.8, maxOutputTokens: 4000, responseMimeType: "application/json" }
+                }),
+                signal: ctrl.signal
+              }
+            );
+            if (r.ok) {
+              const data = await r.json();
+              const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+              const m = text.match(/\{[\s\S]*\}/);
+              if (m) {
+                const parsed = JSON.parse(m[0]);
+                if (Array.isArray(parsed.variants)) variants.push(...parsed.variants);
+              }
+            }
+          } finally {
+            clearTimeout(t);
+          }
+        } catch (e) {
+          // fall through to stub
+        }
+      }
+      // Deterministic stub fallback so the agent always has copy to work with
+      const wantCount = Number(input.count ?? 3);
+      while (variants.length < wantCount) {
+        const i = variants.length;
+        variants.push({
+          name: `${String(input.platform)} variant ${i + 1}`,
+          hook: String(input.brief).slice(0, 80),
+          headline: String(input.brief).slice(0, 60),
+          primaryCopy: String(input.brief) + "\n\nEdit me — Gemini is offline so this is a stub.",
+          cta: "Learn more"
+        });
+      }
+      return {
+        ok: true,
+        output: { variants },
+        recordAction: {
+          type: "creative.generateCopy",
+          summary: `Generated ${variants.length} copy variants`,
+          payload: { count: variants.length, platform: input.platform, tone: input.tone }
+        }
+      };
+    }
+  },
+  {
+    name: "creative.generateImage",
+    description:
+      "Generate a visual creative (image) using Gemini image output. Saves the asset and creates a DRAFT Creative record. Returns the new creativeId.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        brief: { type: "string" },
+        platform: { type: "string", enum: ["META", "GOOGLE", "WHATSAPP", "EMAIL", "INFLUENCER", "GENERIC"] },
+        style: { type: "string", enum: ["photoreal", "studio", "lifestyle", "ugc_phone_shot", "flat_lay", "infographic"] },
+        aspectRatio: { type: "string", enum: ["1:1", "4:5", "9:16", "16:9"] },
+        campaignId: { type: "string" },
+        clientId: { type: "string" }
+      },
+      required: ["brief"]
+    },
+    requires: "creative.create",
+    handler: async (input, ctx) => {
+      if (!ctx.can("creative.create")) return { ok: false, error: "permission denied: creative.create" };
+      const apiKey = process.env.GEMINI_API_KEY?.replace(/[^\x20-\x7E]/g, "").trim();
+      const { randomUUID } = await import("node:crypto");
+      const { saveAsset } = await import("@/lib/storage");
+      const SIZE: Record<string, { w: number; h: number }> = {
+        "1:1": { w: 1024, h: 1024 }, "4:5": { w: 1024, h: 1280 }, "9:16": { w: 1024, h: 1820 }, "16:9": { w: 1820, h: 1024 }
+      };
+      const aspectRatio = String(input.aspectRatio ?? "1:1");
+      const size = SIZE[aspectRatio] ?? SIZE["1:1"]!;
+      const w = size.w;
+      const h = size.h;
+      let buffer: Buffer | null = null;
+      let model = "adziga-placeholder-v1";
+      if (apiKey) {
+        try {
+          const r = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+              body: JSON.stringify({
+                contents: [{ role: "user", parts: [{ text: `${input.brief}. ${input.style ?? "studio"} style. No text overlays.` }] }],
+                generationConfig: { temperature: 0.9, responseModalities: ["TEXT", "IMAGE"], imageConfig: { aspectRatio: input.aspectRatio ?? "1:1" } }
+              })
+            }
+          );
+          if (r.ok) {
+            const data = await r.json();
+            const inline = data?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
+            if (inline?.data) {
+              buffer = Buffer.from(inline.data, "base64");
+              model = "gemini-2.0-flash-exp";
+            }
+          }
+        } catch (e) { /* fall through */ }
+      }
+      if (!buffer) {
+        const truncated = String(input.brief).slice(0, 80);
+        const svg = `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f36d21"/><stop offset="100%" stop-color="#0a0a0a"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/><text x="${w/2}" y="${h/2}" text-anchor="middle" fill="white" font-family="system-ui" font-size="${Math.max(28, w/18)}" font-weight="700">${truncated}</text></svg>`;
+        buffer = Buffer.from(svg, "utf8");
+      }
+      const asset = await saveAsset({
+        orgId: ctx.orgId,
+        buffer,
+        mimeType: model.startsWith("gemini") ? "image/png" : "image/svg+xml",
+        originalName: `${randomUUID()}.${model.startsWith("gemini") ? "png" : "svg"}`,
+        folder: "ai-generated"
+      });
+      const creative = await ctx.prisma.creative.create({
+        data: {
+          orgId: ctx.orgId,
+          campaignId: input.campaignId ? String(input.campaignId) : null,
+          name: String(input.brief).slice(0, 60),
+          format: "IMAGE",
+          platform: String(input.platform ?? "META"),
+          primaryCopy: String(input.brief),
+          mediaUrl: asset.url,
+          thumbnailUrl: asset.url,
+          source: "AI_GENERATED",
+          creator: "AI (" + model + ")",
+          status: "DRAFT"
+        }
+      });
+      return {
+        ok: true,
+        output: { creativeId: creative.id, url: asset.url, model },
+        recordAction: {
+          type: "creative.generateImage",
+          summary: `Generated image for "${creative.name}"`,
+          payload: { creativeId: creative.id, model, url: asset.url }
+        }
+      };
+    }
   }
 ];
 

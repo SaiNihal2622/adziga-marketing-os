@@ -343,13 +343,14 @@ model Creative {
   orgId        String
   campaignId   String?
   name         String
-  format       String   // IMAGE | VIDEO | CAROUSEL | STORY | REEL | TEXT | UGC
+  format       String   // IMAGE | VIDEO | CAROUSEL | STORY | REEL | TEXT | UGC | AUDIO
   platform     String
   hook         String?
   headline     String?
   primaryCopy  String?
   cta          String?
   creator      String?
+  source       String   @default("CLIENT_UPLOAD") // AI_GENERATED | CLIENT_UPLOAD | DESIGNER | STOCK | USER_TEMPLATE
   version      Int      @default(1)
   audience     String?
   mediaUrl     String?
@@ -363,7 +364,7 @@ model Creative {
   cpl          Float    @default(0)
   conversions  BigInt   @default(0)
   revenue      Float    @default(0)
-  status       String   @default("DRAFT") // DRAFT | REVIEW | APPROVED | ACTIVE | PAUSED | ARCHIVED
+  status       String   @default("DRAFT") // DRAFT | IN_REVIEW | APPROVED | ACTIVE | PAUSED | ARCHIVED
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
