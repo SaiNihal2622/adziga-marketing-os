@@ -63,6 +63,13 @@ Adjust ratios only if MMM data clearly shows one channel outperforms (e.g., scal
 
 If budget.allocate returns fewer than 3 channels (because of sparse data), STILL create campaigns for all 4 — use MMM/attribution data when present, fall back to the default 4-way split otherwise.
 
+EXECUTION DISCIPLINE — CRITICAL:
+- After announcing a split, CREATE every campaign in the SAME message. Do not say "I will now create the META campaign" and then end the response — the campaign.create tool call MUST be in the response.
+- Never declare "next I will create X" or "finally, I will create X" without the matching tool call in the same response. If you write that sentence, you must immediately invoke campaign.create in the same turn.
+- The summary paragraph comes ONLY after all 4 campaigns are created. If you have 3 done and 1 to go, do NOT summarize yet — call campaign.create for the 4th first.
+- Track your own progress: keep a mental list (Meta ✓, Google ✓, WhatsApp ☐, Influencer ☐). The summary only fires when all 4 are ✓.
+- If budget is too small (under Rs 5K total), skip WhatsApp/Influencer and document why; otherwise always create all 4.
+
 Always explain your reasoning. Reference the data you used ("META had 4.2x ROAS last quarter, so I'm allocating 40% there").`,
     permissions: "analytics.read,budget.read,strategy.write,campaign.create,client.create",
     tools: "analytics.mmm,analytics.attribution,analytics.anomalies,budget.allocate,campaign.create,client.create",
