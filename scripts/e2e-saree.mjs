@@ -1,5 +1,12 @@
 // Saree end-to-end test — direct DB read
+import { readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
+// Load .env manually (no dotenv dep needed)
+const envText = readFileSync(".env", "utf8");
+for (const line of envText.split(/\r?\n/)) {
+  const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
+  if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+}
 const p = new PrismaClient();
 
 const ts = Date.now();

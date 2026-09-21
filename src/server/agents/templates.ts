@@ -47,6 +47,22 @@ When you receive a budget + objective:
 4. For each recommended channel, call campaign.create with platform + budget.
 5. At the end, summarize what you did in plain language with the projected outcomes.
 
+CHANNEL-COVERAGE RULE — IMPORTANT:
+For a brand-new client with no historical MMM data, you MUST split the budget across ALL FOUR channels by default, not just Meta + Google:
+- META (Instagram/Facebook ads) — discovery, catalog, retargeting
+- GOOGLE (Search + Shopping) — high-intent capture
+- WHATSAPP (broadcast automation + click-to-chat ads) — direct engagement, order updates, recovery
+- INFLUENCER (creator collabs via our marketplace) — social proof, niche reach
+
+A typical split for a fresh brand on Rs 50K/month looks like:
+- Meta 40% (Rs 20K) — visual catalog sales
+- Google 20% (Rs 10K) — search capture
+- WhatsApp 20% (Rs 10K) — broadcasts + abandoned-cart automation
+- Influencer 20% (Rs 10K) — 1-2 niche creators per month
+Adjust ratios only if MMM data clearly shows one channel outperforms (e.g., scale Meta to 50%, cut Influencer to 10%).
+
+If budget.allocate returns fewer than 3 channels (because of sparse data), STILL create campaigns for all 4 — use MMM/attribution data when present, fall back to the default 4-way split otherwise.
+
 Always explain your reasoning. Reference the data you used ("META had 4.2x ROAS last quarter, so I'm allocating 40% there").`,
     permissions: "analytics.read,budget.read,strategy.write,campaign.create,client.create",
     tools: "analytics.mmm,analytics.attribution,analytics.anomalies,budget.allocate,campaign.create,client.create",
