@@ -46,7 +46,7 @@ async function callGeminiForAgent(opts: {
   const contents = opts.history.map((m) => {
     if (m.role === "tool") {
       return {
-        role: "function",
+        role: "user",
         parts: [{ functionResponse: { name: m.toolName!, response: { result: m.content } } }]
       };
     }

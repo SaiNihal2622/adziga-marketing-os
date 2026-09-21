@@ -51,6 +51,57 @@ export type ToolSpec = {
 // Campaign & budget tools (Ad Ops)
 // ──────────────────────────────────────────────────────────────────────────
 
+export const clientTools: ToolSpec[] = [
+  {
+    name: "client.create",
+    description: "Create a new client record for a brand you onboard into Adziga. Auto-suggests a slug from the business name.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        businessName: { type: "string" },
+        contactName: { type: "string" },
+        contactEmail: { type: "string" },
+        contactPhone: { type: "string" },
+        industry: { type: "string" },
+        websiteUrl: { type: "string" },
+        city: { type: "string" },
+        monthlyBudget: { type: "number" }
+      },
+      required: ["businessName", "contactName", "contactEmail"]
+    },
+    requires: "client.create",
+    handler: async (input, ctx) => {
+      if (!ctx.can("client.create")) {
+        return { ok: false, error: "permission denied: client.create" };
+      }
+      const businessName = String(input.businessName);
+      const client = await ctx.prisma.client.create({
+        data: {
+          orgId: ctx.orgId,
+          businessName,
+          contactName: String(input.contactName),
+          contactEmail: String(input.contactEmail),
+          contactPhone: input.contactPhone ? String(input.contactPhone) : null,
+          industry: input.industry ? String(input.industry) : null,
+          websiteUrl: input.websiteUrl ? String(input.websiteUrl) : null,
+          city: input.city ? String(input.city) : null,
+          monthlyBudget: input.monthlyBudget ? Number(input.monthlyBudget) : null,
+          status: "ACTIVE"
+        }
+      });
+      return {
+        ok: true,
+        output: { clientId: client.id, businessName: client.businessName },
+        recordAction: {
+          type: "client.create",
+          summary: `Onboarded client "${client.businessName}"`,
+          payload: { clientId: client.id, businessName: client.businessName }
+        }
+      };
+    }
+  }
+];
+
 export const campaignTools: ToolSpec[] = [
   {
     name: "campaign.create",
@@ -74,10 +125,19 @@ export const campaignTools: ToolSpec[] = [
       if (!ctx.can("campaign.create")) {
         return { ok: false, error: "permission denied: campaign.create" };
       }
+      // Verify the client belongs to this org — refuse cross-org access
+      const clientId = String(input.clientId);
+      const client = await ctx.prisma.client.findFirst({
+        where: { id: clientId, orgId: ctx.orgId },
+        select: { id: true }
+      });
+      if (!client) {
+        return { ok: false, error: `client ${clientId} not found in this org` };
+      }
       const c = await ctx.prisma.campaign.create({
         data: {
           orgId: ctx.orgId,
-          clientId: String(input.clientId),
+          clientId,
           name: String(input.name),
           platform: String(input.platform),
           objective: String(input.objective),
@@ -429,6 +489,7 @@ export const competitorTools: ToolSpec[] = [
 // ──────────────────────────────────────────────────────────────────────────
 
 export const ALL_TOOLS: ToolSpec[] = [
+  ...clientTools,
   ...campaignTools,
   ...budgetTools,
   ...creativeTools,

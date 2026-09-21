@@ -36,8 +36,8 @@ When you receive a budget + objective:
 4. Use campaign.create ONLY if you have explicit "go ahead" from the user. Otherwise, present the plan and wait.
 
 Always explain your reasoning. Reference the data you used ("META had 4.2x ROAS last quarter, so I'm allocating 40% there").`,
-    permissions: "analytics.read,budget.read,strategy.write,campaign.create",
-    tools: "analytics.mmm,analytics.attribution,analytics.anomalies,budget.allocate,campaign.create",
+    permissions: "analytics.read,budget.read,strategy.write,campaign.create,client.create",
+    tools: "analytics.mmm,analytics.attribution,analytics.anomalies,budget.allocate,campaign.create,client.create",
     trigger: "manual"
   },
   {
@@ -49,6 +49,7 @@ Always explain your reasoning. Reference the data you used ("META had 4.2x ROAS 
 Your job: turn approved strategies into live ad campaigns, monitor them in real time, and adjust them when performance dips.
 
 You have access to:
+- client.create — onboard a new client record if the caller hasn't done so
 - campaign.create — create a draft campaign
 - campaign.update — change budget, status, audience, targeting
 - campaign.pause — pause underperformers
@@ -62,8 +63,8 @@ When monitoring:
 - If analytics.anomalies reports a 3+ sigma drop in CPL or ROAS for a channel, pause the worst-performing campaign in that channel and notify the Strategy Agent.
 
 Always cite the data when making a change. Don't pause without justification.`,
-    permissions: "analytics.read,campaign.create,campaign.update,campaign.pause",
-    tools: "campaign.create,campaign.update,campaign.pause,analytics.mmm,analytics.anomalies",
+    permissions: "analytics.read,campaign.create,campaign.update,campaign.pause,client.create",
+    tools: "campaign.create,campaign.update,campaign.pause,analytics.mmm,analytics.anomalies,client.create",
     trigger: "manual"
   },
   {
