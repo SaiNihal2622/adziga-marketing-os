@@ -41,7 +41,13 @@ async function callGeminiForAgent(opts: {
   model?: string;
 }): Promise<GeminiResponse> {
   const cleanedKey = opts.apiKey.replace(/[^\x20-\x7E]/g, "").trim();
-  const model = opts.model ?? "gemini-flash-latest";
+  // Try the configured model first, then fall back to other available models
+  // if Gemini is overloaded. This is critical for production reliability.
+  const modelChain = [
+    opts.model ?? "gemini-flash-latest",
+    "gemini-3.5-flash",
+    "gemini-2.5-flash"
+  ];
 
   const contents = opts.history.map((m) => {
     if (m.role === "tool") {
@@ -59,66 +65,67 @@ async function callGeminiForAgent(opts: {
     parameters: t.inputSchema as any
   }));
 
-  // Retry with exponential backoff on 503 (Gemini rate limits) and 429.
-  // The agent runner is allowed up to 5 attempts over ~60 seconds because
-  // we're a low-volume production system and a single user message is worth
-  // waiting for. Each attempt has a 45s timeout; backoff doubles each time.
-  const maxAttempts = 5;
+  // Retry with exponential backoff on 503/429. Across the model chain,
+  // we try up to 2 attempts per model before moving on.
   let lastError: any = null;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 45_000);
-    try {
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": cleanedKey },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: opts.systemPrompt }] },
-            contents,
-            tools: [{ functionDeclarations }],
-            generationConfig: { temperature: 0.4, maxOutputTokens: 1200, topP: 0.9 }
-          }),
-          signal: ctrl.signal
+  for (const model of modelChain) {
+    const maxAttemptsPerModel = 2;
+    for (let attempt = 0; attempt < maxAttemptsPerModel; attempt++) {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 30_000);
+      try {
+        const r = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": cleanedKey },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: opts.systemPrompt }] },
+              contents,
+              tools: [{ functionDeclarations }],
+              generationConfig: { temperature: 0.4, maxOutputTokens: 1200, topP: 0.9 }
+            }),
+            signal: ctrl.signal
+          }
+        );
+        if (r.status === 503 || r.status === 429) {
+          const err = await r.text();
+          lastError = { model, status: r.status, body: err.slice(0, 200) };
+          clearTimeout(timeout);
+          const backoff = Math.min(3000 * Math.pow(2, attempt), 10_000);
+          console.log(`gemini_agent_retry model=${model} attempt=${attempt + 1} status=${r.status} backoff=${backoff}ms`);
+          await new Promise((res) => setTimeout(res, backoff));
+          continue;
         }
-      );
-      if (r.status === 503 || r.status === 429) {
-        const err = await r.text();
-        lastError = { status: r.status, body: err.slice(0, 200) };
+        if (!r.ok) {
+          const err = await r.text();
+          console.error("gemini_agent_http_error", r.status, err.slice(0, 500));
+          return { text: null, toolCalls: [] };
+        }
+        const data = (await r.json()) as any;
+        if (!data?.candidates?.[0]?.content?.parts?.length) {
+          console.error("gemini_agent_empty", JSON.stringify(data).slice(0, 500));
+          return { text: null, toolCalls: [] };
+        }
+        const parts = data?.candidates?.[0]?.content?.parts ?? [];
+        const text = parts.find((p: any) => p.text)?.text ?? null;
+        const toolCalls: GeminiFunctionCall[] = parts
+          .filter((p: any) => p.functionCall)
+          .map((p: any) => ({ name: p.functionCall.name, args: p.functionCall.args ?? {} }));
+        return {
+          text,
+          toolCalls,
+          tokensIn: data?.usageMetadata?.promptTokenCount,
+          tokensOut: data?.usageMetadata?.candidatesTokenCount
+        };
+      } catch (e) {
+        console.error("gemini_agent_failed", e);
+        return { text: null, toolCalls: [] };
+      } finally {
         clearTimeout(timeout);
-        const backoff = Math.min(3000 * Math.pow(2, attempt), 15_000);
-        console.log(`gemini_agent_retry attempt=${attempt + 1} status=${r.status} backoff=${backoff}ms`);
-        await new Promise((res) => setTimeout(res, backoff));
-        continue;
       }
-      if (!r.ok) {
-        const err = await r.text();
-        console.error("gemini_agent_http_error", r.status, err.slice(0, 500));
-        return { text: null, toolCalls: [] };
-      }
-      const data = (await r.json()) as any;
-      if (!data?.candidates?.[0]?.content?.parts?.length) {
-        console.error("gemini_agent_empty", JSON.stringify(data).slice(0, 500));
-        return { text: null, toolCalls: [] };
-      }
-      const parts = data?.candidates?.[0]?.content?.parts ?? [];
-      const text = parts.find((p: any) => p.text)?.text ?? null;
-      const toolCalls: GeminiFunctionCall[] = parts
-        .filter((p: any) => p.functionCall)
-        .map((p: any) => ({ name: p.functionCall.name, args: p.functionCall.args ?? {} }));
-      return {
-        text,
-        toolCalls,
-        tokensIn: data?.usageMetadata?.promptTokenCount,
-        tokensOut: data?.usageMetadata?.candidatesTokenCount
-      };
-    } catch (e) {
-      console.error("gemini_agent_failed", e);
-      return { text: null, toolCalls: [] };
-    } finally {
-      clearTimeout(timeout);
     }
+    console.log(`gemini_agent_fallback_from model=${model}`);
   }
   console.error("gemini_agent_exhausted", lastError);
   return { text: null, toolCalls: [] };
