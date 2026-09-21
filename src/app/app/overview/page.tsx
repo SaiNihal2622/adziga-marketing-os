@@ -185,28 +185,71 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
         <div className="grid md:grid-cols-3 gap-4">
           {[
             {
-              icon: "â—Ž",
+              icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9.5 14.5 3 21" />
+                  <path d="M14.5 9.5 21 3" />
+                  <path d="M14 10 21 3 18 6 14 10z" />
+                  <path d="M3 21l3-3-4.5-4.5a2.12 2.12 0 0 1 0-3l7-7a2.12 2.12 0 0 1 3 0L14.5 7" />
+                  <circle cx="6" cy="18" r="1.5" />
+                  <circle cx="18" cy="6" r="1.5" />
+                </svg>
+              ),
+              tint: "from-brand-500/15 to-brand-500/0 text-brand-600",
               title: "Connect Meta, Google, WhatsApp",
               description: "Sync campaign data automatically. Tier-gated to Pro+.",
               href: "/app/admin/integrations"
             },
             {
-              icon: "â†˜",
+              icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              ),
+              tint: "from-accent-500/15 to-accent-500/0 text-accent-600",
               title: "Invite your team",
               description: "Founder, Admin, Marketing Manager, Content, Sales, Finance. Audit every action.",
               href: "/app/admin"
             },
             {
-              icon: "âœ¸",
+              icon: (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+                  <path d="M20 3v4" />
+                  <path d="M22 5h-4" />
+                  <path d="M4 17v2" />
+                  <path d="M5 18H3" />
+                </svg>
+              ),
+              tint: "from-amber-500/15 to-amber-500/0 text-amber-600",
               title: "Ask the AI Assistant",
               description: "Context-aware answers grounded in your actual data — not generic marketing advice.",
               href: "/app/ai"
             }
           ].map((c) => (
-            <Link key={c.title} href={c.href} className="card-v0 p-5 hover:border-ink-300 transition-colors">
-              <div className="text-2xl mb-2">{c.icon}</div>
-              <h3 className="text-sm font-semibold text-ink-900 mb-1">{c.title}</h3>
-              <p className="text-xs text-ink-500">{c.description}</p>
+            <Link
+              key={c.title}
+              href={c.href}
+              className="group relative overflow-hidden card-v0 p-5 hover:border-ink-300 hover:shadow-sm transition-all"
+            >
+              <div className={`absolute inset-x-0 top-0 h-20 bg-gradient-to-b ${c.tint} pointer-events-none opacity-60`} />
+              <div className="relative">
+                <div className={`inline-flex size-9 items-center justify-center rounded-lg bg-white/80 ring-1 ring-ink-200 ${c.tint.split(" ").pop()} mb-3`}>
+                  <span className="block size-5">{c.icon}</span>
+                </div>
+                <h3 className="text-sm font-semibold text-ink-900 mb-1">{c.title}</h3>
+                <p className="text-xs text-ink-500 leading-relaxed">{c.description}</p>
+                <div className="mt-3 flex items-center gap-1 text-xs font-medium text-ink-600 group-hover:text-ink-900 transition-colors">
+                  Open
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
             </Link>
           ))}
         </div>

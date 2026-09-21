@@ -112,9 +112,9 @@ function Search() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search clients, campaigns, leads..."
-          className="input pl-9 pr-3 w-72 focus-ring"
+          className="input pl-9 pr-14 w-72 focus-ring"
         />
-        <kbd className="hidden lg:flex absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-ink-400 bg-ink-100 px-1.5 py-0.5 rounded border border-ink-200">⌘K</kbd>
+        <kbd className="hidden lg:flex absolute right-2 top-1/2 -translate-y-1/2 items-center gap-0.5 text-[10px] font-medium text-ink-500 bg-ink-100/80 px-1.5 py-0.5 rounded border border-ink-200 pointer-events-none">⌘K</kbd>
       </div>
       {results && results.length > 0 && (
         <div className="absolute top-full mt-1 w-96 card-v0 p-1 shadow-lg z-40 max-h-80 overflow-y-auto scroll-v0">
