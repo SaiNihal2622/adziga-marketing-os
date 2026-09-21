@@ -15,3 +15,14 @@ prisma/dev.db-journal
 .vercel
 coverage/tsconfig.tsbuildinfo
 .vercel
+
+# Browser automation screenshots and temp files
+scripts/.*.png
+scripts/.browser-snap.png
+scripts/.resend-*.png
+scripts/.razorpay-*.png
+scripts/.after-*.png
+
+# Vercel CLI token — read from env var in scripts/setup-credentials.mjs
+# Never commit .vercel or any PAT
+
