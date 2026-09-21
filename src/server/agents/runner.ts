@@ -111,12 +111,16 @@ async function callGeminiForAgent(opts: {
         if (!r.ok) {
           const err = await r.text();
           console.error("gemini_agent_http_error", r.status, err.slice(0, 500));
-          return { text: null, toolCalls: [] };
+          // Don't early-return — try the next model in the chain
+          lastError = { model, status: r.status, body: err.slice(0, 200) };
+          break; // break out of inner attempt loop, try next model
         }
         const data = (await r.json()) as any;
         if (!data?.candidates?.[0]?.content?.parts?.length) {
           console.error("gemini_agent_empty", JSON.stringify(data).slice(0, 500));
-          return { text: null, toolCalls: [] };
+          // Empty response — try the next model
+          lastError = { model, status: "empty", body: "no candidates returned" };
+          break; // break out of inner attempt loop, try next model
         }
         const parts = data?.candidates?.[0]?.content?.parts ?? [];
         const text = parts.find((p: any) => p.text)?.text ?? null;
@@ -133,7 +137,8 @@ async function callGeminiForAgent(opts: {
         };
       } catch (e) {
         console.error("gemini_agent_failed", e);
-        return { text: null, toolCalls: [] };
+        lastError = { model, error: String(e).slice(0, 200) };
+        break; // try the next model in the chain
       } finally {
         clearTimeout(timeout);
       }
@@ -358,10 +363,22 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
       }
 
       if (!llm.text && llm.toolCalls.length === 0) {
-        // No content, abort
-        finalText = wasTruncated
+        // No content, abort — but persist a clear assistant message so the user
+        // doesn't see a silent thread.
+        const errText = wasTruncated
           ? "My response was truncated. Please reply 'continue' and I'll pick up where I left off."
-          : "I couldn't generate a response. Let me know what you'd like me to do.";
+          : "I couldn't generate a response right now (the model may be overloaded). Please try again in a moment, or reply 'retry' and I'll take another pass.";
+        await prisma.agentMessage.create({
+          data: {
+            threadId,
+            role: "assistant",
+            content: errText,
+            toolCalls: JSON.stringify([]),
+            model: "gemini-flash-latest",
+            status: "complete"
+          }
+        });
+        finalText = errText;
         break;
       }
 
