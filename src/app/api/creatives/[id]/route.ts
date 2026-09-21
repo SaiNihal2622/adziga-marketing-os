@@ -13,7 +13,7 @@ export const GET = authedRoute(null, async (ctx, _data, params) => {
     }
   });
   if (!creative) throw new AppError("NOT_FOUND", "Creative not found", 404);
-  return { creative };
+  return { creative: serializeCreative(creative) };
 });
 
 export const PATCH = authedRoute(updateCreativeSchema, async (ctx, body, params) => {
@@ -38,7 +38,7 @@ export const PATCH = authedRoute(updateCreativeSchema, async (ctx, body, params)
       version: { increment: 1 }
     }
   });
-  return { creative: updated };
+  return { creative: serializeCreative(updated) };
 });
 
 export const DELETE = authedRoute(null, async (ctx, _data, params) => {
@@ -47,3 +47,14 @@ export const DELETE = authedRoute(null, async (ctx, _data, params) => {
   await ctx.prisma.creative.delete({ where: { id: params.id } });
   return { ok: true };
 });
+
+function serializeCreative(c: any) {
+  if (!c) return c;
+  return {
+    ...c,
+    impressions: Number(c.impressions ?? 0),
+    reach: Number(c.reach ?? 0),
+    leads: Number(c.leads ?? 0),
+    conversions: Number(c.conversions ?? 0)
+  };
+}

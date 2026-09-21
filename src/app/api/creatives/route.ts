@@ -28,8 +28,19 @@ export const GET = authedRoute(listCreativesSchema, async (ctx, body) => {
       campaign: { select: { id: true, name: true, client: { select: { id: true, businessName: true } } } }
     }
   });
-  return { items };
+  return { items: items.map(serializeCreative) };
 });
+
+function serializeCreative(c: any) {
+  if (!c) return c;
+  return {
+    ...c,
+    impressions: Number(c.impressions ?? 0),
+    reach: Number(c.reach ?? 0),
+    leads: Number(c.leads ?? 0),
+    conversions: Number(c.conversions ?? 0)
+  };
+}
 
 export const POST = authedRoute(createCreativeV2Schema, async (ctx, body) => {
   const creative = await ctx.prisma.creative.create({
@@ -54,5 +65,5 @@ export const POST = authedRoute(createCreativeV2Schema, async (ctx, body) => {
       status: "DRAFT"
     }
   });
-  return { creative };
+  return { creative: serializeCreative(creative) };
 });

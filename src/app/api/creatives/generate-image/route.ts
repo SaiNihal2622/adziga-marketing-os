@@ -123,8 +123,29 @@ export const POST = authedRoute(generateImageSchema, async (ctx, body) => {
     }
   });
 
-  return { creative, model, warning };
+  return {
+    creative: serializeCreative(creative),
+    model,
+    warning
+  };
 });
+
+/**
+ * JSON.stringify throws on BigInt. The Creative model has BigInt fields
+ * (impressions, reach, leads, conversions). Convert them to Number for
+ * the API response — these are stats columns that fit in Number range
+ * for any realistic marketing dataset.
+ */
+function serializeCreative(c: any) {
+  if (!c) return c;
+  return {
+    ...c,
+    impressions: Number(c.impressions ?? 0),
+    reach: Number(c.reach ?? 0),
+    leads: Number(c.leads ?? 0),
+    conversions: Number(c.conversions ?? 0)
+  };
+}
 
 function renderPlaceholderSvg(width: number, height: number, brief: string, style: string): string {
   // Brand colors (#f36d21 orange, #0a0a0a ink) — gradient placeholder.

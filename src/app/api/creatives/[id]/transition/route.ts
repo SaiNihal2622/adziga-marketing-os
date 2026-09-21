@@ -34,5 +34,15 @@ export const POST = authedRoute(creativeTransitionSchema, async (ctx, body, para
     where: { id: params.id },
     data: { status: to }
   });
-  return { creative: updated, from, to };
+  return {
+    creative: {
+      ...updated,
+      impressions: Number(updated.impressions ?? 0),
+      reach: Number(updated.reach ?? 0),
+      leads: Number(updated.leads ?? 0),
+      conversions: Number(updated.conversions ?? 0)
+    },
+    from,
+    to
+  };
 });
