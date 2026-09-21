@@ -1,34 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
-  <!-- Ink black background with rounded corners -->
-  <rect width="256" height="256" rx="48" fill="#0A0A0A"/>
-
-  <!-- LEFT CLUSTER — white shapes (the "rising" half of the mark) -->
-
-  <!-- Small white triangle (top-left, points right) -->
-  <path d="M40 28 L102 56 L40 70 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/>
-
-  <!-- White circle (top-right of left cluster) -->
-  <circle cx="116" cy="44" r="11" fill="#FFFFFF"/>
-
-  <!-- Larger white triangle (middle, points right) -->
-  <path d="M30 70 L106 100 L30 116 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/>
-
-  <!-- White rounded dash (lower-left, slight tilt) -->
-  <g transform="rotate(-14 70 158)">
-    <rect x="36" y="148" width="80" height="20" rx="10" fill="#FFFFFF"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <style>
+      .adziga-fg { fill: #fff; }
+      .adziga-accent { fill: #f36d21; }
+    </style>
+  </defs>
+  <rect width="120" height="120" fill="#000"/>
+  <g id="adziga-mark">
+    <ellipse class="adziga-fg" cx="22.71" cy="55.92" rx="7.39" ry="8.53" transform="translate(-25.47 19.56) rotate(-30.85)"/>
+    <path class="adziga-accent" d="M69.81,43.27l21.93-15.15c1.87-1.29,4.42-.8,5.69,1.11l2.84,4.26c1.27,1.91.78,4.5-1.09,5.79l-21.93,15.15c-1.87,1.29-4.42.8-5.69-1.11l-2.84-4.26c-1.27-1.91-.78-4.5,1.09-5.79Z"/>
+    <path class="adziga-fg" d="M28.53,89.56l23.01-15.89c1.87-1.29,2.36-3.89,1.09-5.79l-2.84-4.26c-1.27-1.91-3.82-2.4-5.69-1.11l-23.01,15.89c-1.87,1.29-2.36,3.89-1.09,5.79l2.84,4.26c1.27,1.91,3.82,2.4,5.69,1.11Z"/>
+    <ellipse class="adziga-fg" cx="70.01" cy="23.25" rx="7.39" ry="8.53" transform="translate(-2.02 39.2) rotate(-30.85)"/>
+    <ellipse class="adziga-fg" cx="50.12" cy="96.75" rx="7.39" ry="8.53" transform="translate(-42.52 39.4) rotate(-30.85)"/>
+    <path class="adziga-fg" d="M44.49,20.09l-14.56,10.06c-3.28,2.26-3.01,7.19.49,9.08l16.63,8.99c3.78,2.05,8.31-.99,7.84-5.27l-2.07-19.05c-.44-4.02-5.01-6.11-8.34-3.82Z"/>
+    <path class="adziga-accent" d="M74.8,97.28l14.29-9.87c3.37-2.33,3.14-7.38-.42-9.4l-16.74-9.46c-3.97-2.25-8.81,1-8.24,5.53l2.45,19.33c.52,4.13,5.24,6.23,8.66,3.87Z"/>
+    <ellipse class="adziga-accent" cx="97.29" cy="64.17" rx="7.39" ry="8.53" transform="translate(-19.14 58.98) rotate(-30.85)"/>
   </g>
-
-  <!-- Bottom white circle -->
-  <circle cx="76" cy="208" r="12" fill="#FFFFFF"/>
-
-  <!-- RIGHT CLUSTER — orange shapes (the "elevating" half of the mark) -->
-
-  <!-- Large orange triangle (top, points right) -->
-  <path d="M124 36 L200 70 L124 104 Z" fill="#F26B2A" stroke="#F26B2A" stroke-width="2" stroke-linejoin="round"/>
-
-  <!-- Smaller orange triangle (middle, points right) -->
-  <path d="M126 120 L184 148 L126 176 Z" fill="#F26B2A" stroke="#F26B2A" stroke-width="2" stroke-linejoin="round"/>
-
-  <!-- Orange dot (right of orange triangles) -->
-  <circle cx="216" cy="96" r="10" fill="#F26B2A"/>
 </svg>

@@ -1,6 +1,7 @@
 // Adziga brand logo — three variants: full lockup, icon-only, wordmark.
-// Uses currentColor for monochrome variants (the brand orange mark stays
-// orange in all variants).
+// Uses the official brand SVGs (Artboard 2/3 for the mark, Artboard 4/4-copy
+// for the full lockup). The mark and brand orange (#f36d21) are constant;
+// the foreground (white or dark) flips with theme.
 import type { CSSProperties } from "react";
 
 export type LogoVariant = "lockup" | "icon" | "wordmark";
@@ -17,33 +18,118 @@ export type LogoProps = {
   ariaLabel?: string;
 };
 
-const ORANGE = "#F26B2A";
-const INK = "#0A0A0A";
+const ORANGE = "#f36d21";
+const INK = "#231f20";
+const FG_LIGHT = "#FFFFFF";
+const FG_DARK = INK;
+const BG_DARK = "#000000";
 
-/** Reusable icon mark. Color is fixed (orange + white on ink). */
-function IconMark({ size = 40 }: { size: number }) {
+/**
+ * Icon mark only — Adziga "A" abstract.
+ * On dark backgrounds: white shapes + orange shapes + black bg.
+ * On light backgrounds: dark shapes + orange shapes + transparent bg.
+ */
+function IconMark({ theme = "dark", size = 40 }: { theme?: LogoTheme; size?: number }) {
+  const fg = theme === "dark" ? FG_LIGHT : FG_DARK;
+  const fgClass = theme === "dark" ? "adziga-icon-fg-light" : "adziga-icon-fg-dark";
+  const accentClass = "adziga-icon-accent";
+  const ariaHidden = true;
+
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       width={size}
       height={size}
-      viewBox="0 0 256 256"
+      viewBox="0 0 120 120"
       fill="none"
-      aria-hidden
+      role={ariaHidden ? undefined : "img"}
+      aria-hidden={ariaHidden || undefined}
     >
-      <rect width="256" height="256" rx="48" fill={INK} />
-      {/* LEFT — white */}
-      <path d="M40 28 L102 56 L40 70 Z" fill="#FFFFFF" stroke="#FFFFFF" strokeWidth="2" strokeLinejoin="round" />
-      <circle cx="116" cy="44" r="11" fill="#FFFFFF" />
-      <path d="M30 70 L106 100 L30 116 Z" fill="#FFFFFF" stroke="#FFFFFF" strokeWidth="2" strokeLinejoin="round" />
-      <g transform="rotate(-14 70 158)">
-        <rect x="36" y="148" width="80" height="20" rx="10" fill="#FFFFFF" />
+      {theme === "dark" && <rect width="120" height="120" fill={BG_DARK} />}
+      <defs>
+        <style>{`.${fgClass}{fill:${fg};}.${accentClass}{fill:${ORANGE};}`}</style>
+      </defs>
+      <g>
+        <ellipse className={fgClass} cx="22.71" cy="55.92" rx="7.39" ry="8.53" transform="translate(-25.47 19.56) rotate(-30.85)" />
+        <path className={accentClass} d="M69.81,43.27l21.93-15.15c1.87-1.29,4.42-.8,5.69,1.11l2.84,4.26c1.27,1.91.78,4.5-1.09,5.79l-21.93,15.15c-1.87,1.29-4.42.8-5.69-1.11l-2.84-4.26c-1.27-1.91-.78-4.5,1.09-5.79Z" />
+        <path className={fgClass} d="M28.53,89.56l23.01-15.89c1.87-1.29,2.36-3.89,1.09-5.79l-2.84-4.26c-1.27-1.91-3.82-2.4-5.69-1.11l-23.01,15.89c-1.87,1.29-2.36,3.89-1.09,5.79l2.84,4.26c1.27,1.91,3.82,2.4,5.69,1.11Z" />
+        <ellipse className={fgClass} cx="70.01" cy="23.25" rx="7.39" ry="8.53" transform="translate(-2.02 39.2) rotate(-30.85)" />
+        <ellipse className={fgClass} cx="50.12" cy="96.75" rx="7.39" ry="8.53" transform="translate(-42.52 39.4) rotate(-30.85)" />
+        <path className={fgClass} d="M44.49,20.09l-14.56,10.06c-3.28,2.26-3.01,7.19.49,9.08l16.63,8.99c3.78,2.05,8.31-.99,7.84-5.27l-2.07-19.05c-.44-4.02-5.01-6.11-8.34-3.82Z" />
+        <path className={accentClass} d="M74.8,97.28l14.29-9.87c3.37-2.33,3.14-7.38-.42-9.4l-16.74-9.46c-3.97-2.25-8.81,1-8.24,5.53l2.45,19.33c.52,4.13,5.24,6.23,8.66,3.87Z" />
+        <ellipse className={accentClass} cx="97.29" cy="64.17" rx="7.39" ry="8.53" transform="translate(-19.14 58.98) rotate(-30.85)" />
       </g>
-      <circle cx="76" cy="208" r="12" fill="#FFFFFF" />
-      {/* RIGHT — orange */}
-      <path d="M124 36 L200 70 L124 104 Z" fill={ORANGE} stroke={ORANGE} strokeWidth="2" strokeLinejoin="round" />
-      <path d="M126 120 L184 148 L126 176 Z" fill={ORANGE} stroke={ORANGE} strokeWidth="2" strokeLinejoin="round" />
-      <circle cx="216" cy="96" r="10" fill={ORANGE} />
+    </svg>
+  );
+}
+
+/**
+ * Full lockup — icon + ADZIGA wordmark + "Elevating dreams" tagline.
+ * Renders the same composition as Artboard 4 / 4-copy, scaled to the
+ * requested width. Height auto-derives from the 2:1 viewBox.
+ */
+function Lockup({ theme = "dark", size = 220 }: { theme?: LogoTheme; size?: number }) {
+  const fg = theme === "dark" ? FG_LIGHT : FG_DARK;
+  const accent = ORANGE;
+  const fgClass = theme === "dark" ? "adziga-lockup-fg-light" : "adziga-lockup-fg-dark";
+  const accentClass = "adziga-lockup-accent";
+  const height = Math.round(size / 2);
+  const taglineColor = theme === "dark" ? "rgba(255,255,255,0.7)" : "rgba(35,31,32,0.65)";
+
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={height}
+      viewBox="0 0 200 100"
+      fill="none"
+      role="img"
+      aria-label="Adziga — Elevating dreams"
+    >
+      {theme === "dark" && <rect width="200" height="100" fill={BG_DARK} />}
+      <defs>
+        <style>{`.${fgClass}{fill:${fg};}.${accentClass}{fill:${accent};}`}</style>
+      </defs>
+      <g>
+        {/* Wordmark — ADZIGA */}
+        <g>
+          <path className={fgClass} d="M87.2,33.5h4.68l5.43,15.88h-4.14l-2.26-8.04c-.48-1.59-.94-3.47-1.4-5.12h-.11c-.42,1.68-.88,3.53-1.36,5.12l-2.27,8.04h-4l5.43-15.88ZM85.34,42.8h8.32v2.79h-8.32v-2.79Z" />
+          <path className={fgClass} d="M100.11,33.5h4.89c5.28,0,8.68,2.41,8.68,7.87s-3.4,8.01-8.47,8.01h-5.11v-15.88ZM104.76,46.49c2.93,0,4.92-1.32,4.92-5.12s-1.98-4.98-4.92-4.98h-.74v10.1h.74Z" />
+          <path className={fgClass} d="M116.46,47.21l7.65-10.71h-6.92v-3.01h11.74v2.17l-7.65,10.71h7.71v3.01h-12.53v-2.17Z" />
+          <path className={fgClass} d="M132.84,33.5h3.91v15.88h-3.91v-15.88Z" />
+          <path className={fgClass} d="M141.15,41.53c0-5.27,3.81-8.33,8.43-8.33,2.51,0,4.29.98,5.46,2.06l-2.06,2.3c-.86-.72-1.78-1.26-3.26-1.26-2.66,0-4.55,1.92-4.55,5.1s1.61,5.16,4.87,5.16c.69,0,1.41-.17,1.83-.47v-2.74h-2.87v-2.93h6.34v7.32c-1.19,1.07-3.29,1.92-5.71,1.92-4.76,0-8.47-2.79-8.47-8.14Z" />
+          <path className={fgClass} d="M163.04,33.5h4.68l5.43,15.88h-4.14l-2.26-8.04c-.48-1.59-.94-3.47-1.4-5.12h-.11c-.42,1.68-.88,3.53-1.36,5.12l-2.27,8.04h-4l5.43-15.88ZM161.19,42.8h8.32v2.79h-8.32v-2.79Z" />
+        </g>
+        {/* Tagline — Elevating dreams */}
+        <g>
+          <path className={fgClass} d="M85.53,54.35h4.16l-.1.4h-3.65l-.61,2.8h3.09l-.1.4h-3.07l-.72,3.24h3.77l-.1.41h-4.26l1.58-7.25Z" />
+          <path className={fgClass} d="M90.64,61.26c0-.08.02-.2.05-.33l1.57-7.24h.49l-1.57,7.26c-.02.11-.02.17-.02.22,0,.1.06.17.17.17.05,0,.08,0,.19-.04l.04.37c-.13.05-.23.07-.4.07-.31,0-.52-.17-.52-.48Z" />
+          <path className={fgClass} d="M97.05,56.19c1.25,0,1.73.79,1.73,1.87,0,.37-.09.71-.16.92h-4.01c-.31,1.66.57,2.36,1.72,2.36.51,0,1.02-.24,1.44-.51l.22.33c-.46.31-1.07.57-1.73.57-1.33,0-2.19-.76-2.19-2.18,0-2,1.51-3.37,2.99-3.37ZM98.26,58.62c.05-.21.07-.4.07-.63,0-.71-.34-1.41-1.32-1.41s-2.01.84-2.32,2.04h3.57Z" />
+          <path className={fgClass} d="M100.49,56.32h.49l.55,3.34c.09.51.15,1.06.24,1.55h.05c.28-.51.59-1.04.9-1.55l1.95-3.34h.51l-3.15,5.28h-.63l-.91-5.28Z" />
+          <path className={fgClass} d="M106.04,59.83c0-2.03,1.53-3.64,3.12-3.64.68,0,1.18.34,1.48.86h.05l.22-.73h.41l-1.15,5.28h-.41l.13-.84h-.05c-.59.57-1.33.97-2.12.97-1.01,0-1.68-.67-1.68-1.91ZM109.98,60.19l.6-2.65c-.42-.68-.88-.95-1.42-.95-1.36,0-2.61,1.57-2.61,3.16,0,1.07.5,1.59,1.28,1.59.74,0,1.48-.41,2.15-1.14Z" />
+          <path className={fgClass} d="M113.41,60.69c0-.2.03-.35.05-.53l.78-3.45h-.9l.07-.35.93-.05.4-1.51h.42l-.33,1.51h1.55l-.09.39h-1.56l-.78,3.47c-.02.13-.05.26-.05.41,0,.49.19.74.81.74.27,0,.5-.1.69-.19l.14.34c-.23.11-.56.24-.93.24-.9,0-1.21-.48-1.21-1.04Z" />
+          <path className={fgClass} d="M118.48,56.32h.49l-1.15,5.28h-.49l1.15-5.28ZM118.64,54.68c0-.29.24-.5.5-.5.22,0,.4.15.4.38,0,.27-.24.47-.5.47-.22,0-.4-.15-.4-.36Z" />
+          <path className={fgClass} d="M121.83,56.32h.41l-.13.84h.05c.7-.56,1.35-.97,2.05-.97.98,0,1.37.52,1.37,1.29,0,.26-.03.41-.1.71l-.74,3.41h-.49l.74-3.35c.07-.32.1-.47.1-.68,0-.64-.3-.98-1.02-.98-.51,0-1.18.34-2.05,1.11l-.85,3.9h-.49l1.15-5.28Z" />
+          <path className={fgClass} d="M127.07,63.42l.28-.33c.43.37,1,.67,1.7.67,1.13,0,1.76-.74,2.02-1.86l.29-1.24c-.65.58-1.34.97-2.14.97-.98,0-1.66-.66-1.66-1.88,0-1.96,1.53-3.56,3.05-3.56.66,0,1.18.34,1.48.86h.05l.22-.73h.41l-1.26,5.74c-.3,1.3-1.15,2.09-2.49,2.09-.82,0-1.45-.34-1.95-.73ZM131.43,60.15l.59-2.61c-.44-.68-.88-.95-1.42-.95-1.3,0-2.54,1.56-2.54,3.08,0,1.04.47,1.56,1.26,1.56.64,0,1.45-.41,2.11-1.07Z" />
+          <path className={fgClass} d="M142.36,55.99l.51-2.3h.49l-1.74,7.91h-.42l.13-.84h-.05c-.59.57-1.33.97-2.12.97-1.01,0-1.68-.67-1.68-1.91,0-2.03,1.53-3.64,3.12-3.64.68,0,1.17.34,1.47.85h.04l.23-1.05ZM141.43,60.19l.6-2.65c-.42-.68-.88-.95-1.42-.95-1.36,0-2.61,1.57-2.61,3.16,0,1.07.5,1.59,1.28,1.59.74,0,1.47-.41,2.15-1.14Z" />
+          <path className={fgClass} d="M145.65,56.32h.41l-.18,1h.05c.48-.62,1.06-1.13,1.8-1.13.16,0,.33.02.52.09l-.19.43c-.1-.05-.24-.09-.45-.09-.61,0-1.34.54-1.86,1.49l-.75,3.5h-.49l1.15-5.28Z" />
+          <path className={fgClass} d="M151.9,56.19c1.25,0,1.73.79,1.73,1.87,0,.37-.09.71-.16.92h-4.01c-.31,1.66.57,2.36,1.72,2.36.51,0,1.02-.24,1.44-.51l.22.33c-.46.31-1.07.57-1.73.57-1.33,0-2.19-.76-2.19-2.18,0-2,1.51-3.37,2.99-3.37ZM153.1,58.62c.04-.21.07-.4.07-.63,0-.71-.34-1.41-1.32-1.41s-2.01.84-2.32,2.04h3.57Z" />
+          <path className={fgClass} d="M155.29,59.83c0-2.03,1.53-3.64,3.12-3.64.68,0,1.18.34,1.48.86h.05l.22-.73h.41l-1.15,5.28h-.41l.13-.84h-.04c-.59.57-1.33.97-2.12.97-1.01,0-1.68-.67-1.68-1.91ZM159.23,60.19l.6-2.65c-.42-.68-.88-.95-1.42-.95-1.36,0-2.61,1.57-2.61,3.16,0,1.07.5,1.59,1.28,1.59.74,0,1.48-.41,2.15-1.14Z" />
+          <path className={fgClass} d="M163.43,56.32h.42l-.13.84h.05c.64-.56,1.35-.97,1.92-.97.95,0,1.29.51,1.33,1.1.8-.71,1.53-1.1,2.1-1.1.96,0,1.35.52,1.35,1.29,0,.26-.02.41-.1.71l-.74,3.41h-.49l.74-3.35c.07-.32.1-.47.1-.68,0-.64-.3-.98-1-.98-.37,0-1.11.34-1.91,1.11l-.85,3.9h-.49l.74-3.35c.07-.32.1-.47.1-.68,0-.64-.3-.98-1-.98-.37,0-1.11.34-1.91,1.11l-.85,3.9h-.49l1.15-5.28Z" />
+          <path className={fgClass} d="M171.87,60.75l.35-.24c.32.46.9.84,1.63.84.79,0,1.47-.51,1.47-1.11,0-.42-.2-.7-1.09-1.14-1.03-.51-1.41-.87-1.41-1.42,0-.9.84-1.49,1.82-1.49.65,0,1.19.26,1.58.64l-.32.29c-.31-.3-.71-.54-1.29-.54-.73,0-1.31.47-1.31,1.03,0,.51.5.78,1.07,1.06,1.24.62,1.43,1.02,1.43,1.5,0,.96-.86,1.57-2,1.57-.82,0-1.59-.49-1.92-.98Z" />
+        </g>
+        {/* Icon mark on the left side of the lockup */}
+        <g>
+          <ellipse className={fgClass} cx="43.16" cy="66.98" rx="3.59" ry="4.11" transform="translate(-30.16 35.79) rotate(-34.16)" />
+          <rect className={accentClass} x="51.47" y="37.17" width="16.92" height="6.46" rx="2" ry="2" transform="translate(132.2 40.19) rotate(145.84)" />
+          <rect className={fgClass} x="27.65" y="53.83" width="17.55" height="6.46" rx="2" ry="2" transform="translate(98.62 83.82) rotate(145.84)" />
+          <ellipse className={fgClass} cx="52.86" cy="31.77" rx="3.59" ry="4.11" transform="translate(-8.72 35.16) rotate(-34.16)" />
+          <ellipse className={fgClass} cx="29.8" cy="47.42" rx="3.59" ry="4.11" transform="translate(-21.49 24.91) rotate(-34.16)" />
+          <path className={fgClass} d="M41.27,29.68l-8.7,5.9c-1.25.84-1.14,2.71.18,3.42l9.94,5.28c1.42.75,3.1-.39,2.92-1.98l-1.23-11.18c-.17-1.5-1.86-2.28-3.11-1.43Z" />
+          <path className={accentClass} d="M54.23,67.9l8.81-5.98c1.23-.84,1.15-2.68-.15-3.4l-10.33-5.73c-1.43-.8-3.16.38-2.95,2l1.51,11.71c.19,1.48,1.87,2.23,3.1,1.4Z" />
+          <ellipse className={accentClass} cx="66.17" cy="51.38" rx="3.59" ry="4.11" transform="translate(-17.43 46.02) rotate(-34.16)" />
+        </g>
+      </g>
     </svg>
   );
 }
@@ -56,20 +142,22 @@ export function Logo({
   style,
   ariaLabel
 }: LogoProps) {
-  const textColor = theme === "dark" ? "#FFFFFF" : INK;
-  const taglineColor = theme === "dark" ? "rgba(255,255,255,0.7)" : "rgba(10,10,10,0.6)";
-
   if (variant === "icon") {
     const s = size ?? 40;
     return (
-      <span className={className} style={{ display: "inline-block", lineHeight: 0, ...style }} aria-label={ariaLabel ?? "Adziga"} role="img">
-        <IconMark size={s} />
+      <span
+        className={className}
+        style={{ display: "inline-block", lineHeight: 0, ...style }}
+        aria-label={ariaLabel ?? "Adziga"}
+        role="img"
+      >
+        <IconMark theme={theme} size={s} />
       </span>
     );
   }
 
   if (variant === "wordmark") {
-    // Text-only mark — useful inside nav bars where the icon would be redundant.
+    const textColor = theme === "dark" ? FG_LIGHT : FG_DARK;
     return (
       <span
         className={className}
@@ -93,57 +181,16 @@ export function Logo({
     );
   }
 
-  // Full lockup — icon + ADZIGA wordmark + tagline
-  const iconSize = Math.round((size ?? 220) * 0.42);
-  const wordmarkSize = Math.round((size ?? 220) * 0.22);
-  const taglineSize = Math.round((size ?? 220) * 0.085);
-
+  // Full lockup — the official Artboard 4 / 4-copy composition
+  const lockupSize = size ?? 220;
   return (
     <span
       className={className}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: Math.round((size ?? 220) * 0.07),
-        ...style
-      }}
+      style={{ display: "inline-block", lineHeight: 0, ...style }}
       aria-label={ariaLabel ?? "Adziga — Elevating dreams"}
       role="img"
     >
-      <IconMark size={iconSize} />
-      <span
-        style={{
-          display: "inline-flex",
-          flexDirection: "column",
-          alignItems: "flex-start",
-          lineHeight: 1
-        }}
-      >
-        <span
-          style={{
-            fontFamily: "var(--font-display, 'Geist', system-ui, sans-serif)",
-            fontWeight: 800,
-            fontSize: wordmarkSize,
-            letterSpacing: "0.02em",
-            color: textColor
-          }}
-        >
-          ADZIGA
-        </span>
-        <span
-          style={{
-            marginTop: Math.round(taglineSize * 0.4),
-            fontFamily: "var(--font-serif, 'Crimson Pro', Georgia, serif)",
-            fontStyle: "italic",
-            fontWeight: 400,
-            fontSize: taglineSize,
-            letterSpacing: "0.01em",
-            color: taglineColor
-          }}
-        >
-          Elevating dreams
-        </span>
-      </span>
+      <Lockup theme={theme} size={lockupSize} />
     </span>
   );
 }
