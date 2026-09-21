@@ -71,12 +71,21 @@ export async function saveAsset(opts: {
   const key = join(opts.orgId, folder, fileName).split(sep).join("/");
 
   if (storageBackend() === "local") {
-    const fullPath = join(PUBLIC_DIR, UPLOAD_PREFIX, key);
+    // Detect Vercel / read-only deploys: write to /tmp there, and serve via
+    // a /api/files/[...path] route that streams the byte back. /tmp is
+    // ephemeral — files vanish on cold starts. For persistent storage on
+    // Vercel, switch to STORAGE_BACKEND=s3 (R2/S3) and set the env vars.
+    const isVercel = !!process.env.VERCEL;
+    const rootDir = isVercel ? "/tmp" : PUBLIC_DIR;
+    const urlPrefix = isVercel ? "/api/files" : "/uploads";
+    const fullPath = isVercel
+      ? join("/tmp", UPLOAD_PREFIX, key)
+      : join(PUBLIC_DIR, UPLOAD_PREFIX, key);
     await fs.mkdir(resolve(fullPath, ".."), { recursive: true });
     await fs.writeFile(fullPath, opts.buffer);
     return {
       key: `${UPLOAD_PREFIX}/${key}`,
-      url: `/uploads/${opts.orgId}/${folder}/${fileName}`,
+      url: `${urlPrefix}/${opts.orgId}/${folder}/${fileName}`,
       bytes: opts.buffer.length,
       mimeType: opts.mimeType,
       originalName: opts.originalName
