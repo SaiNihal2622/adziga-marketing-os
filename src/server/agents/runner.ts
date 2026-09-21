@@ -145,7 +145,46 @@ async function callGeminiForAgent(opts: {
     }
     console.log(`gemini_agent_fallback_from model=${model}`);
   }
-  console.error("gemini_agent_exhausted", lastError);
+  // Chain exhausted — try one more time on the first model after a longer wait.
+  // This handles brief Gemini overload spikes where every model is 503 at
+  // the same instant but recovers within a few seconds.
+  console.error("gemini_agent_chain_exhausted", lastError, "—last attempt with backoff");
+  await new Promise((res) => setTimeout(res, 4000));
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 30_000);
+  try {
+    const lastModel = opts.model ?? "gemini-flash-latest";
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${lastModel}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": cleanedKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: opts.systemPrompt }] },
+          contents,
+          tools: [{ functionDeclarations }],
+          generationConfig: { temperature: 0.4, maxOutputTokens: maxTokens, topP: 0.9 }
+        }),
+        signal: ctrl.signal
+      }
+    );
+    if (r.ok) {
+      const data = (await r.json()) as any;
+      const parts = data?.candidates?.[0]?.content?.parts ?? [];
+      if (parts.length) {
+        const text = parts.find((p: any) => p.text)?.text ?? null;
+        const toolCalls: GeminiFunctionCall[] = parts
+          .filter((p: any) => p.functionCall)
+          .map((p: any) => ({ name: p.functionCall.name, args: p.functionCall.args ?? {} }));
+        const finishReason = (data?.candidates?.[0]?.finishReason as GeminiFinishReason | undefined) ?? undefined;
+        return { text, toolCalls, tokensIn: data?.usageMetadata?.promptTokenCount, tokensOut: data?.usageMetadata?.candidatesTokenCount, finishReason };
+      }
+    }
+  } catch (e) {
+    console.error("gemini_agent_final_attempt_failed", e);
+  } finally {
+    clearTimeout(timeout);
+  }
   return { text: null, toolCalls: [] };
 }
 
