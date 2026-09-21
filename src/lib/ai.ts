@@ -163,7 +163,17 @@ export async function askAssistant(ctx: AIContext): Promise<{
 }
 
 function stubAnswer(ctx: AIContext, sections: string[]): string {
-  const q = ctx.question.toLowerCase();
+  const q = ctx.question.toLowerCase().trim();
+
+  // Greetings / chitchat — first to handle, otherwise every "hi" falls through
+  // to the long "I'm Adziga Assistant..." paragraph which feels cold.
+  if (/^(hi|hello|hey|yo|hola|namaste|namaskar|good\s+(morning|afternoon|evening))\b/.test(q) || q.length < 4) {
+    const greet = q.includes("namaste") || q.includes("namaskar")
+      ? "Namaste! I'm Adziga Assistant."
+      : "Hi! I'm Adziga Assistant.";
+    const ctx_ = ctx.client ? ` I see you're working on ${ctx.client.businessName}.` : " I see you don't have any clients onboarded yet — start by adding one.";
+    return `${greet}${ctx_} Ask me about CPL, ROAS, campaign status, attribution, or budget reallocation.`;
+  }
 
   if (q.includes("change") || q.includes("update") || q.includes("modify") || q.includes("pause") || q.includes("scale") || q.includes("launch")) {
     return "I cannot execute that change directly. As per Adziga's governance policy, AI suggestions never bypass human approval. I can submit this as a request - would you like me to create a ticket for the Adziga team?";

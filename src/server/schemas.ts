@@ -320,7 +320,7 @@ export const orchestrationTransitionSchema = z.object({
 });
 
 export const askAssistantSchema = z.object({
-  question: z.string().min(3).max(2000),
+  question: z.string().min(1).max(2000),
   clientId: cuidSchema.optional()
 });
 

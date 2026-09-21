@@ -14,24 +14,44 @@ export function AskAssistant({
   const [q, setQ] = useState("");
   const [clientId, setClientId] = useState(defaultClientId ?? "");
   const [response, setResponse] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [model, setModel] = useState<string | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setResponse(null);
-    const res = await fetch("/api/ai/ask", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ question: q, clientId: clientId || undefined })
-    });
-    setLoading(false);
-    if (res.ok) {
-      const data = await res.json();
-      setResponse(data.response);
-      router.refresh();
-    } else {
-      setResponse("Sorry - something went wrong. Try again.");
+    setError(null);
+    try {
+      const res = await fetch("/api/ai/ask", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: q, clientId: clientId || undefined })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setResponse(data.response);
+        setModel(data.model ?? null);
+        setLatencyMs(data.latencyMs ?? null);
+        router.refresh();
+      } else {
+        // Try to surface the real error so the user (and we) can debug it.
+        const body = await res.text();
+        let detail = body;
+        try {
+          const parsed = JSON.parse(body);
+          detail = parsed.error || parsed.message || body;
+        } catch {}
+        setError(`Request failed (${res.status}): ${detail.slice(0, 240)}`);
+        setResponse("Sorry — I hit an error answering that. The server said:\n\n" + (detail || "(no body)").slice(0, 600));
+      }
+    } catch (e: any) {
+      setError(`Network error: ${e?.message ?? "unknown"}`);
+      setResponse("Sorry — couldn't reach the server. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -56,8 +76,15 @@ export function AskAssistant({
         </button>
       </div>
       {response && (
-        <div className="mt-3 p-4 rounded-lg bg-brand-50 border border-brand-200 text-sm">
-          <div className="text-xs font-semibold text-brand-700 mb-1">Adziga Assistant</div>
+        <div className={`mt-3 p-4 rounded-lg border text-sm ${error ? "bg-red-50 border-red-200" : "bg-brand-50 border-brand-200"}`}>
+          <div className={`text-xs font-semibold mb-1 ${error ? "text-red-700" : "text-brand-700"}`}>
+            {error ? "Error" : "Adziga Assistant"}
+            {!error && model && (
+              <span className="ml-2 text-ink-500 font-normal">
+                · {model}{latencyMs != null ? ` · ${latencyMs}ms` : ""}
+              </span>
+            )}
+          </div>
           <div className="text-ink-900 whitespace-pre-wrap">{response}</div>
         </div>
       )}

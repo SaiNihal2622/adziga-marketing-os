@@ -51,12 +51,19 @@ async function callGeminiForAgent(opts: {
   //   2. gemini-3.5-flash            (fallback flash)
   //   3. gemini-2.5-flash            (older flash, usually available)
   //   4. gemini-2.5-pro              (slower but more capable for complex plans — last resort)
+  //   5. minimax/MiniMax-M3            (only if MINIMAX_API_KEY is set — falls through to deterministic planner if missing)
   const modelChain = [
     opts.model ?? "gemini-flash-latest",
     "gemini-3.5-flash",
     "gemini-2.5-flash",
     "gemini-2.5-pro"
   ];
+  if (process.env.MINIMAX_API_KEY) {
+    // MiniMax is OpenAI/Anthropic-style function-calling, NOT the same Gemini
+    // functionDeclarations format. We use a separate codepath for it — see
+    // callMiniMaxForAgent below. Pushed to the END of the chain so it only
+    // runs if every Gemini model is exhausted.
+  }
 
   const contents = opts.history.map((m) => {
     if (m.role === "tool") {
@@ -185,7 +192,93 @@ async function callGeminiForAgent(opts: {
   } finally {
     clearTimeout(timeout);
   }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Final fallback: MiniMax (Anthropic-compatible OpenAI-style endpoint).
+  // Only runs if MINIMAX_API_KEY is set on the environment. Endpoint and
+  // auth come from the user's Mavis config:
+  //   baseURL: https://agent.minimax.io/mavis/api/v1/llm/v1
+  //   model:   MiniMax-M3 (or -M2.7-highspeed for cheaper/lower-latency)
+  // MiniMax uses OpenAI tool-calling format, not Gemini's functionDeclarations.
+  // ──────────────────────────────────────────────────────────────────────
+  const minimaxKey = process.env.MINIMAX_API_KEY?.trim();
+  if (minimaxKey) {
+    console.log("agent_fallback_to_minimax");
+    return callMiniMaxForAgent(opts);
+  }
+
   return { text: null, toolCalls: [] };
+}
+
+/**
+ * MiniMax fallback — calls the configured MiniMax endpoint with the
+ * OpenAI-style tool-calling convention. Returns null text on failure
+ * so the main runner can persist its deterministic-fallback summary.
+ */
+async function callMiniMaxForAgent(opts: {
+  apiKey: string;
+  systemPrompt: string;
+  history: Array<{ role: "user" | "assistant" | "tool"; content: string; toolName?: string; toolCallId?: string }>;
+  tools: ToolSpec[];
+  maxOutputTokens?: number;
+}): Promise<GeminiResponse & { finishReason?: GeminiFinishReason }> {
+  const baseURL = process.env.MINIMAX_BASE_URL ?? "https://agent.minimax.io/mavis/api/v1/llm/v1";
+  const model = process.env.MINIMAX_MODEL ?? "MiniMax-M3";
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 60_000);
+  try {
+    const messages: any[] = [];
+    for (const m of opts.history) {
+      if (m.role === "tool") {
+        messages.push({ role: "tool", tool_call_id: m.toolCallId ?? m.toolName ?? "unknown", content: m.content });
+      } else {
+        messages.push({ role: m.role, content: m.content });
+      }
+    }
+    const tools = opts.tools.map((t) => ({
+      type: "function",
+      function: { name: t.name, description: t.description, parameters: t.inputSchema }
+    }));
+    const r = await fetch(`${baseURL}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "system", content: opts.systemPrompt }, ...messages],
+        tools,
+        tool_choice: "auto",
+        max_tokens: opts.maxOutputTokens ?? 8000,
+        temperature: 0.4
+      }),
+      signal: ctrl.signal
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      console.error("minimax_agent_http_error", r.status, err.slice(0, 300));
+      return { text: null, toolCalls: [] };
+    }
+    const data = (await r.json()) as any;
+    const choice = data?.choices?.[0];
+    const msg = choice?.message ?? {};
+    const text = msg.content ?? null;
+    const toolCalls: GeminiFunctionCall[] = (msg.tool_calls ?? []).map((tc: any) => ({
+      name: tc.function?.name ?? tc.name,
+      args: typeof tc.function?.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function?.arguments ?? {}
+    }));
+    const finishReason = (choice?.finish_reason as GeminiFinishReason | undefined) ?? undefined;
+    return {
+      text,
+      toolCalls,
+      tokensIn: data?.usage?.prompt_tokens,
+      tokensOut: data?.usage?.completion_tokens,
+      finishReason
+    };
+  } catch (e) {
+    console.error("minimax_agent_failed", e);
+    return { text: null, toolCalls: [] };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
