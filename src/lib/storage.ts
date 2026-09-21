@@ -85,11 +85,10 @@ export async function saveAsset(opts: {
 
   // S3 path — only reached when STORAGE_BACKEND=s3 is configured.
   // Implemented lazily so the S3 SDK doesn't ship in local builds.
-  // @ts-expect-error — optional peer; only present when STORAGE_BACKEND=s3
-  const s3Module: any = await import("@aws-sdk/client-s3").catch(() => {
+  const s3Module = await import("@aws-sdk/client-s3").catch(() => {
     throw new Error("STORAGE_BACKEND=s3 requires @aws-sdk/client-s3 — install it first.");
   });
-  const { S3Client, PutObjectCommand } = s3Module;
+  const { S3Client, PutObjectCommand } = s3Module as any;
   const region = process.env.STORAGE_S3_REGION ?? "auto";
   const endpoint = process.env.STORAGE_S3_ENDPOINT;
   const bucket = process.env.STORAGE_S3_BUCKET;
