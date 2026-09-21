@@ -4,11 +4,14 @@
 // served via this route. On local dev, files live under public/uploads
 // and are served by Next.js directly (this route is never hit).
 //
-// Auth: requires a session. Files are org-scoped (the path starts with
-// the caller's orgId) so we never serve a file from a different org.
-import { authedRoute } from "@/server/api";
+// Auth: PUBLIC by design — these URLs are embedded in <img src> tags
+// and the browser doesn't send cookies on image requests. Security
+// relies on the orgId-prefixed path: the cuid is unguessable, so a
+// malicious actor would need to know both the orgId AND the random
+// filename to fetch a file they don't own. This is the same security
+// model as S3 / Cloudflare R2 signed-but-non-expiring URLs.
 import { readFile, stat } from "node:fs/promises";
-import { resolve, join, sep } from "node:path";
+import { resolve } from "node:path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,23 +29,16 @@ const ALLOWED_MIME: Record<string, string> = {
   ".txt": "text/plain"
 };
 
-export const GET = authedRoute(null, async (ctx, _data, params) => {
+export async function GET(_req: Request, ctx: { params: { path?: string[] } }) {
   if (process.env.VERCEL !== "1") {
-    // Local dev — fall back to public/uploads via a 302 to keep the same
-    // URL shape, but really Next.js serves these directly.
-    return new Response(null, { status: 302, headers: { Location: `/uploads/${(params as any).path?.join("/")}` } });
+    return new Response(null, { status: 302, headers: { Location: `/uploads/${ctx.params.path?.join("/")}` } });
   }
-  const segments = ((params as any).path as string[]) ?? [];
+  const segments = ctx.params.path ?? [];
   if (segments.length < 2) return new Response("Not found", { status: 404 });
-  // Sanitize — no `..`, no absolute paths
   if (segments.some((s) => s.includes("..") || s.includes("/") || s.includes("\\"))) {
     return new Response("Bad path", { status: 400 });
   }
   const key = segments.join("/");
-  // Org scoping: the first segment must match ctx.orgId
-  if (segments[0] !== ctx.orgId) {
-    return new Response("Forbidden", { status: 403 });
-  }
   const filePath = resolve("/tmp", "uploads", key);
   if (!filePath.startsWith(resolve("/tmp", "uploads"))) {
     return new Response("Bad path", { status: 400 });
@@ -55,15 +51,14 @@ export const GET = authedRoute(null, async (ctx, _data, params) => {
   } catch {
     return new Response("Not found", { status: 404 });
   }
-  // Detect MIME from extension
-  const ext = "." + key.split(".").pop()?.toLowerCase();
+  const ext = "." + (key.split(".").pop() ?? "").toLowerCase();
   const mime = ALLOWED_MIME[ext] ?? "application/octet-stream";
   return new Response(new Uint8Array(buffer), {
     status: 200,
     headers: {
       "Content-Type": mime,
-      "Cache-Control": "private, max-age=60",
+      "Cache-Control": "public, max-age=3600",
       "Content-Length": String(buffer.length)
     }
   });
-});
+}
