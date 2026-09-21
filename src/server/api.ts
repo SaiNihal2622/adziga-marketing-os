@@ -7,6 +7,7 @@ import { requireSession, audit, TierRequiredError } from "@/lib/session";
 import { AppError, isAppError, UnauthorizedError } from "./errors";
 import { logger } from "./logger";
 import type { OrgTier, Role } from "@/lib/constants";
+import { prisma } from "@/lib/db";
 
 export type ApiContext = {
   userId: string;
@@ -14,6 +15,7 @@ export type ApiContext = {
   orgTier: OrgTier;
   role: Role;
   req: NextRequest;
+  prisma: typeof prisma;
 };
 
 export type AuthedHandler<P = unknown, R = unknown> = (
@@ -44,7 +46,8 @@ export function authedRoute<P, R = unknown>(
       orgId: (session as any).orgId,
       orgTier: (session as any).orgTier,
       role: (session as any).role,
-      req
+      req,
+      prisma
     };
 
     try {

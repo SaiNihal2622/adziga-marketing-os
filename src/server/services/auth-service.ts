@@ -114,6 +114,17 @@ export async function signup(input: SignupInput): Promise<{ userId: string; orgI
     data: { email, ip: "signup", success: true, reason: "signup" }
   });
 
+  // Provision the default agent team for the new org. Each org gets 8 agents:
+  // Strategy, Ad Ops, Content, WhatsApp, Influencer, Reporting, Competitor Research, Support.
+  // The team can disable / rename / restrict per org.
+  try {
+    const { provisionDefaultAgents } = await import("../agents/seed");
+    await provisionDefaultAgents(result.org.id);
+  } catch (e) {
+    // Don't fail signup if agent seeding fails — they'll be created on first manual trigger.
+    console.error("agent_provision_failed", e);
+  }
+
   return { userId: result.user.id, orgId: result.org.id, verifyUrl };
 }
 

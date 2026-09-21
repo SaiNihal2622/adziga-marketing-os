@@ -19,6 +19,7 @@ const ICONS = {
   overview: <Icon d="M3 12L12 3l9 9M5 10v10h14V10" />,
   orchestrate: <Icon d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M5 19l3-3M16 8l3-3" />,
   intelligence: <Icon d="M12 2a10 10 0 0 0-7 17l7 5 7-5a10 10 0 0 0-7-17M12 8v4M12 16h.01" />,
+  agents: <Icon d="M9 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19a6 6 0 0 1 12 0M17 11a2 2 0 1 0 0-4M21 19a4 4 0 0 0-6-3.46M14 13a3 3 0 0 1 3 3v3" />,
   connectors: <Icon d="M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0M3 12h6M15 12h6M12 3v6M12 15v6" />,
   clients: <Icon d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />,
   campaigns: <Icon d="M3 11l18-8v18l-18-8v-2zM7 13v4M11 13v4M15 13v4" />,
@@ -45,6 +46,7 @@ function navItemsFor(names: string[]): NavItem[] {
   const map: Record<string, { href: string; icon: React.ReactNode }> = {
     Overview:    { href: "/app/overview",    icon: ICONS.overview },
     Orchestrate: { href: "/app/orchestrate", icon: ICONS.orchestrate },
+    Agents:      { href: "/app/agents",      icon: ICONS.agents },
     Intelligence:{ href: "/app/intelligence", icon: ICONS.intelligence },
     Connectors:  { href: "/app/connectors",  icon: ICONS.connectors },
     Clients:     { href: "/app/clients",     icon: ICONS.clients },

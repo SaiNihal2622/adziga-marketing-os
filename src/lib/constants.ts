@@ -447,6 +447,7 @@ export function navRoutesForRole(role: Role): { client: string[]; operator: stri
       operator: [
         "Overview",
         "Orchestrate",
+        "Agents",
         "Intelligence",
         "Connectors",
         "Clients",
@@ -510,6 +511,7 @@ export function navRoutesForRole(role: Role): { client: string[]; operator: stri
     operator: [],
     client: [
       "Overview",
+      "Agents",
       "Campaigns",
       "Leads",
       "Creatives",

@@ -70,6 +70,12 @@ model Organization {
   subscription    Subscription?
   onboardingSteps OnboardingStep[]
   subdomain       Subdomain?
+  agents          Agent[]
+  threads         AgentThread[]
+  actions         AgentAction[]
+  runs            AgentRun[]
+  competitorAds   CompetitorAd[]
+  actAsSessions    ActAsSession[]
 }
 
 model User {
@@ -97,6 +103,8 @@ model User {
   notifications       Notification[]
   aiInteractions      AIInteraction[]
   clientRequests      ClientRequest[]     @relation("RequestSubmitter")
+  agentThreads        AgentThread[]
+  actAsSessions       ActAsSession[]
 }
 
 model OrgMember {
@@ -148,6 +156,10 @@ model Client {
   events     MarketingEvent[]
   reports    Report[]
   requests   ClientRequest[]
+  agents       Agent[]
+  threads      AgentThread[]
+  actions      AgentAction[]
+  competitorAds CompetitorAd[]
   decisions  DecisionLog[]
   experiments Experiment[]
   onboarding Onboarding?
@@ -1301,6 +1313,235 @@ model EmailMessage {
   createdAt   DateTime @default(now())
 
   @@index([status, scheduledAt])
+}
+
+// --------------------------------------------------------------------------
+// AGENTS — first-class AI workers that operate Adziga on behalf of the org
+// --------------------------------------------------------------------------
+
+/// Each Agent has a fixed role (Strategy, AdOps, Content, WhatsApp, Influencer,
+/// Reporting, CompetitorResearch), a system prompt, a tool allowlist, and a
+/// permission matrix. Agents can run on cron, on event triggers, or in
+/// response to a chat message.
+model Agent {
+  id           String   @id @default(cuid())
+  orgId        String   // agents are org-scoped (one set per client)
+  clientId     String?  // optional: if set, this agent only operates on one client
+  name         String   // "Strategy Agent", "Ad Ops Agent (Saree Seller)"
+  role         String   // STRATEGY | AD_OPS | CONTENT | WHATSAPP | INFLUENCER | REPORTING | COMPETITOR_RESEARCH | SUPPORT
+  description  String?
+  systemPrompt String   // the full system prompt this agent uses
+  // Permissions: which actions the agent can invoke without human approval.
+  // Bit-encoded (string of comma-separated names). Examples:
+  //   "campaign.create", "campaign.update", "campaign.pause", "budget.update",
+  //   "creative.create", "whatsapp.send", "lead.score", "report.send"
+  permissions  String   @default("")
+  // Tool allowlist — names of registered tools (see lib/agents/tools.ts).
+  tools        String   @default("")
+  // Trigger model: when does this agent run automatically?
+  //   "manual"   — only when a user messages it
+  //   "cron"     — every N hours (see cronExpr)
+  //   "event"    — on a domain event (see triggerEvent)
+  trigger      String   @default("manual")
+  cronExpr     String?  // "0 */6 * * *" = every 6h
+  triggerEvent String?  // "lead.created" | "campaign.performance.dropped" | ...
+  enabled      Boolean  @default(true)
+  // Agent telemetry
+  totalRuns    Int      @default(0)
+  lastRunAt    DateTime?
+  lastError    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client  Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  threads AgentThread[]
+  runs    AgentRun[]
+  actions AgentAction[]
+
+  @@index([orgId, role])
+  @@index([trigger, enabled])
+}
+
+/// Chat thread between a user (or another agent) and an Agent.
+model AgentThread {
+  id          String   @id @default(cuid())
+  orgId       String
+  agentId     String
+  userId      String?  // creator / owner of the thread; null for system-initiated
+  clientId    String?  // optional: thread is scoped to one client
+  title       String   @default("New conversation")
+  status      String   @default("open") // open | closed | archived
+  metadata    String?  // JSON — extra context (current page, selected campaign, etc.)
+  lastMessageAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  agent    Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  user     User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  client   Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  messages AgentMessage[]
+  actions  AgentAction[]
+
+  @@index([orgId, status, lastMessageAt])
+  @@index([agentId, lastMessageAt])
+}
+
+/// One message in a thread. role: user | assistant | system | tool.
+model AgentMessage {
+  id          String   @id @default(cuid())
+  threadId    String
+  role        String   // user | assistant | system | tool
+  content     String   // markdown text or tool payload JSON
+  toolCalls   String?  // JSON array of tool calls requested by assistant
+  toolCallId  String?  // for tool result messages
+  // For tool messages: name of the tool that produced the result
+  toolName    String?
+  // Server-side metadata: tokens, model, latency
+  model       String?
+  tokensIn    Int?
+  tokensOut   Int?
+  latencyMs   Int?
+  // Client-side: status of the message ("pending" while generating, "complete", "error")
+  status      String   @default("complete")
+  errorMessage String?
+  createdAt   DateTime @default(now())
+
+  thread AgentThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+/// An action proposed by an agent — must be approved by a human (or auto-approved
+/// based on permission matrix). When approved, runs through AgentRun + AuditLog.
+model AgentAction {
+  id          String   @id @default(cuid())
+  orgId       String
+  agentId     String
+  threadId    String?
+  clientId    String?
+  /// Type of action: campaign.create | campaign.pause | budget.update |
+  /// creative.create | whatsapp.send | lead.assign | etc.
+  type        String
+  /// Human-readable summary, e.g. "Allocate Rs. 20,000 to Meta ads for client X"
+  summary     String
+  /// JSON payload — exact input the action tool will receive
+  payload     String
+  /// Status: pending | approved | rejected | running | completed | failed
+  status      String   @default("pending")
+  /// Approval chain: who/what approved, when, optional reason
+  approvedBy  String?
+  approvedAt  DateTime?
+  rejectedBy  String?
+  rejectedAt  DateTime?
+  rejectionReason String?
+  /// If true, the agent has permission to run this autonomously without approval
+  autoApproved Boolean  @default(false)
+  /// Run that executed this action (if any)
+  runId       String?
+  errorMessage String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  agent  Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  thread AgentThread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  client Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  run    AgentRun?    @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, status, createdAt])
+  @@index([agentId, status])
+}
+
+/// A single execution of an Agent — typically in response to a thread message
+/// or a scheduled/event trigger. Captures the LLM call, tool calls, outputs.
+model AgentRun {
+  id          String   @id @default(cuid())
+  orgId       String
+  agentId     String
+  threadId    String?
+  trigger     String   // user_message | cron | event | action_followup | manual
+  status      String   @default("running") // running | completed | failed | cancelled
+  /// Input that kicked off this run: a user message, a cron payload, an event
+  input       String
+  /// What the agent did: assistant messages (from the LLM), tool calls made, outputs
+  output      String?
+  /// Total tool calls (for billing visibility)
+  toolCallCount Int    @default(0)
+  tokensIn    Int?
+  tokensOut   Int?
+  model       String?
+  durationMs  Int?
+  error       String?
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  agent   Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  actions AgentAction[]
+
+  @@index([orgId, agentId, startedAt])
+  @@index([status, startedAt])
+}
+
+/// Ads harvested from Meta Ad Library for competitor intelligence.
+/// Populated by the Competitor Research Agent on cron.
+model CompetitorAd {
+  id          String   @id @default(cuid())
+  orgId       String
+  clientId    String?  // which client is researching
+  /// Brand name we're tracking (e.g. "Mysore Silks")
+  competitorName String
+  /// Country / region code (IN, US, etc.)
+  country     String   @default("IN")
+  /// Ad Library ID (Meta's ad archive id)
+  externalId  String?
+  /// URL of the ad's landing page
+  landingUrl  String?
+  /// Page/handle that ran the ad
+  pageName    String?
+  /// First seen / last seen
+  firstSeenAt DateTime?
+  lastSeenAt  DateTime?
+  /// Ad copy + creative metadata (JSON)
+  snapshot    String?
+  /// Image / video URLs captured (JSON array)
+  media       String?
+  /// Spend range Meta reports (low, med, high)
+  spendBucket String?
+  /// Estimated impressions range
+  impressionsBucket String?
+  /// Estimated reach
+  reachEstimate Int?
+  /// Days the ad ran
+  activeDays  Int?
+  /// Status: active | inactive
+  status      String   @default("active")
+  scrapedAt   DateTime @default(now())
+
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, clientId, competitorName])
+  @@index([competitorName, scrapedAt])
+}
+
+/// A client that Adziga team is acting-as. actAs(orgId) sets a cookie that
+/// elevates the user's permissions for that org temporarily with full audit.
+model ActAsSession {
+  id        String   @id @default(cuid())
+  userId    String   // the Adziga team member
+  orgId     String   // the client org they're acting as
+  expiresAt DateTime
+  reason    String?  // why they're acting as this client (support ticket, onboarding, etc.)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([orgId])
 }
 
 // --------------------------------------------------------------------------

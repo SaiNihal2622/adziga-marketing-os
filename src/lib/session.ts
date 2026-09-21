@@ -3,6 +3,7 @@ import { auth } from "./auth";
 import { prisma } from "./db";
 import type { Role, OrgTier } from "./constants";
 import { TIER_RANK, hasFeature } from "./constants";
+import { getActAsContext } from "@/server/agents/act-as";
 
 export type SessionInfo = {
   userId: string;
@@ -13,6 +14,8 @@ export type SessionInfo = {
   orgSlug: string;
   orgTier: OrgTier;
   role: Role;
+  /** True when the user is impersonating a client org via actAs cookie */
+  isImpersonating: boolean;
 };
 
 export async function getSession(): Promise<SessionInfo | null> {
@@ -22,6 +25,39 @@ export async function getSession(): Promise<SessionInfo | null> {
   const m = session.memberships.find((x) => x.orgId === session.activeOrgId);
   if (!m) return null;
 
+  // Apply act-as: Adziga team can temporarily operate as a client org
+  const actAs = await getActAsContext(m.orgId, session.user.id);
+  const effective = actAs.effectiveOrgId === m.orgId ? m : await prisma.orgMember.findFirst({
+    where: { orgId: actAs.effectiveOrgId },
+    select: { orgId: true, role: true }
+  }).then(() => null);
+
+  if (actAs.isImpersonating) {
+    const target = await prisma.organization.findUnique({ where: { id: actAs.effectiveOrgId } });
+    if (!target) {
+      // Invalid target — fall back to real org
+      return baseInfo(m, session, false);
+    }
+    // When impersonating, we operate with the TARGET org's role for permission checks
+    // (so Adziga team can do anything in the client's org). The real role is
+    // FOUNDER/ADMIN, which passes all checks anyway.
+    return {
+      userId: session.user.id,
+      userName: session.user.name ?? session.user.email,
+      userEmail: session.user.email,
+      orgId: target.id,
+      orgName: target.name,
+      orgSlug: target.slug,
+      orgTier: target.tier as OrgTier,
+      role: "FOUNDER", // elevate while impersonating
+      isImpersonating: true
+    };
+  }
+
+  return baseInfo(m, session, false);
+}
+
+function baseInfo(m: any, session: any, isImpersonating: boolean): SessionInfo {
   return {
     userId: session.user.id,
     userName: session.user.name ?? session.user.email,
@@ -30,7 +66,8 @@ export async function getSession(): Promise<SessionInfo | null> {
     orgName: m.orgName,
     orgSlug: m.orgSlug,
     orgTier: m.tier as OrgTier,
-    role: m.role as Role
+    role: m.role as Role,
+    isImpersonating
   };
 }
 
