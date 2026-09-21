@@ -33,20 +33,29 @@ type GeminiResponse = {
   tokensOut?: number;
 };
 
+type GeminiFinishReason = "STOP" | "MAX_TOKENS" | "SAFETY" | "RECITATION" | "OTHER";
+
 async function callGeminiForAgent(opts: {
   apiKey: string;
   systemPrompt: string;
   history: Array<{ role: "user" | "assistant" | "tool"; content: string; toolName?: string; toolCallId?: string }>;
   tools: ToolSpec[];
   model?: string;
-}): Promise<GeminiResponse> {
+  /** Caller can request a larger token budget for the first turn of a long plan */
+  maxOutputTokens?: number;
+}): Promise<GeminiResponse & { finishReason?: GeminiFinishReason }> {
   const cleanedKey = opts.apiKey.replace(/[^\x20-\x7E]/g, "").trim();
-  // Try the configured model first, then fall back to other available models
-  // if Gemini is overloaded. This is critical for production reliability.
+  // Try the configured model first, then progressively larger / smarter models
+  // if Gemini is overloaded. Order:
+  //   1. gemini-flash-latest         (fast, default)
+  //   2. gemini-3.5-flash            (fallback flash)
+  //   3. gemini-2.5-flash            (older flash, usually available)
+  //   4. gemini-2.5-pro              (slower but more capable for complex plans — last resort)
   const modelChain = [
     opts.model ?? "gemini-flash-latest",
     "gemini-3.5-flash",
-    "gemini-2.5-flash"
+    "gemini-2.5-flash",
+    "gemini-2.5-pro"
   ];
 
   const contents = opts.history.map((m) => {
@@ -64,6 +73,8 @@ async function callGeminiForAgent(opts: {
     description: t.description,
     parameters: t.inputSchema as any
   }));
+
+  const maxTokens = opts.maxOutputTokens ?? 8000;
 
   // Retry with exponential backoff on 503/429. Across the model chain,
   // we try up to 2 attempts per model before moving on.
@@ -83,7 +94,7 @@ async function callGeminiForAgent(opts: {
               systemInstruction: { parts: [{ text: opts.systemPrompt }] },
               contents,
               tools: [{ functionDeclarations }],
-              generationConfig: { temperature: 0.4, maxOutputTokens: 4000, topP: 0.9 }
+              generationConfig: { temperature: 0.4, maxOutputTokens: maxTokens, topP: 0.9 }
             }),
             signal: ctrl.signal
           }
@@ -116,7 +127,8 @@ async function callGeminiForAgent(opts: {
           text,
           toolCalls,
           tokensIn: data?.usageMetadata?.promptTokenCount,
-          tokensOut: data?.usageMetadata?.candidatesTokenCount
+          tokensOut: data?.usageMetadata?.candidatesTokenCount,
+          finishReason
         };
       } catch (e) {
         console.error("gemini_agent_failed", e);
@@ -299,20 +311,60 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
       }
     }
 
-    // Loop: call Gemini → dispatch tools → call Gemini again (up to 4 rounds)
-    const maxRounds = 4;
+    // Loop: call Gemini → dispatch tools → call Gemini again.
+    // The agent is allowed up to 12 rounds so it can complete multi-step
+    // plans (e.g. Strategy splitting 50K across 4 channels needs ~6-8 rounds:
+    // client.create, budget.allocate, campaign.create ×4). When the model
+    // hits MAX_TOKENS we automatically prompt to continue, picking up from
+    // the last completed step.
+    const maxRounds = 12;
+    let wasTruncated = false;
     while (rounds < maxRounds) {
       rounds++;
-      const llm = await callGeminiForAgent({ apiKey, systemPrompt, history: convo, tools });
+      const llm = await callGeminiForAgent({
+        apiKey,
+        systemPrompt,
+        history: convo,
+        tools,
+        maxOutputTokens: 8000
+      });
+
+      // Detect truncation: the model said it had more to say but ran out.
+      // We auto-continue by injecting a "please continue" user message,
+      // picking up where it left off so the next turn can emit the next tool call.
+      if (llm.finishReason === "MAX_TOKENS") {
+        wasTruncated = true;
+        // Persist what we got so the user sees partial progress
+        await prisma.agentMessage.create({
+          data: {
+            threadId,
+            role: "assistant",
+            content: llm.text ?? "",
+            toolCalls: JSON.stringify([]),
+            tokensIn: llm.tokensIn,
+            tokensOut: llm.tokensOut,
+            model: "gemini-flash-latest",
+            status: "complete"
+          }
+        });
+        convo.push({ role: "assistant", content: llm.text ?? " " });
+        convo.push({
+          role: "user",
+          content:
+            "[system] Your previous response was truncated. Continue from where you left off — make the NEXT tool call you intended to make, then briefly explain what's next."
+        });
+        continue;
+      }
 
       if (!llm.text && llm.toolCalls.length === 0) {
         // No content, abort
-        finalText = "I couldn't generate a response. Let me know what you'd like me to do.";
+        finalText = wasTruncated
+          ? "My response was truncated. Please reply 'continue' and I'll pick up where I left off."
+          : "I couldn't generate a response. Let me know what you'd like me to do.";
         break;
       }
 
       // Persist assistant message + any tool calls
-      const persistedToolCalls: Array<{ name: string; args: unknown; result: unknown }> = [];
       const intentForActions: Array<{ name: string; args: any; result: any }> = [];
 
       for (const tc of llm.toolCalls) {
@@ -387,6 +439,10 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
           toolName: tc.name
         });
       }
+    }
+
+    if (rounds >= maxRounds && !finalText) {
+      finalText = `Reached the maximum number of steps (${maxRounds}). The plan may be incomplete — reply 'continue' to resume.`;
     }
 
     await prisma.agentRun.update({
