@@ -59,8 +59,11 @@ async function callGeminiForAgent(opts: {
     parameters: t.inputSchema as any
   }));
 
-  // Retry with exponential backoff on 503 (Gemini rate limits) and 429
-  const maxAttempts = 3;
+  // Retry with exponential backoff on 503 (Gemini rate limits) and 429.
+  // The agent runner is allowed up to 5 attempts over ~60 seconds because
+  // we're a low-volume production system and a single user message is worth
+  // waiting for. Each attempt has a 45s timeout; backoff doubles each time.
+  const maxAttempts = 5;
   let lastError: any = null;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const ctrl = new AbortController();
@@ -84,8 +87,9 @@ async function callGeminiForAgent(opts: {
         const err = await r.text();
         lastError = { status: r.status, body: err.slice(0, 200) };
         clearTimeout(timeout);
-        // Wait 2^attempt seconds before retrying
-        await new Promise((res) => setTimeout(res, Math.min(2000 * Math.pow(2, attempt), 8000)));
+        const backoff = Math.min(3000 * Math.pow(2, attempt), 15_000);
+        console.log(`gemini_agent_retry attempt=${attempt + 1} status=${r.status} backoff=${backoff}ms`);
+        await new Promise((res) => setTimeout(res, backoff));
         continue;
       }
       if (!r.ok) {
