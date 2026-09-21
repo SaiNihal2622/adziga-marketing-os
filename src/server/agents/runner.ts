@@ -83,7 +83,7 @@ async function callGeminiForAgent(opts: {
               systemInstruction: { parts: [{ text: opts.systemPrompt }] },
               contents,
               tools: [{ functionDeclarations }],
-              generationConfig: { temperature: 0.4, maxOutputTokens: 1200, topP: 0.9 }
+              generationConfig: { temperature: 0.4, maxOutputTokens: 4000, topP: 0.9 }
             }),
             signal: ctrl.signal
           }
