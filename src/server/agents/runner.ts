@@ -123,6 +123,7 @@ async function callGeminiForAgent(opts: {
         const toolCalls: GeminiFunctionCall[] = parts
           .filter((p: any) => p.functionCall)
           .map((p: any) => ({ name: p.functionCall.name, args: p.functionCall.args ?? {} }));
+        const finishReason = (data?.candidates?.[0]?.finishReason as GeminiFinishReason | undefined) ?? undefined;
         return {
           text,
           toolCalls,
