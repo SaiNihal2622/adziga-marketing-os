@@ -526,6 +526,12 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
 
       const fallbackText = `I'm running in fallback mode because the AI model is currently overloaded. I'll execute your plan directly.\n\nCreating **${clientName}** with a Rs ${budget.toLocaleString("en-IN")} budget across 4 channels:\n- META — 40% (Rs ${Math.round(budget * 0.4).toLocaleString("en-IN")})\n- GOOGLE — 20% (Rs ${Math.round(budget * 0.2).toLocaleString("en-IN")})\n- WHATSAPP — 20% (Rs ${Math.round(budget * 0.2).toLocaleString("en-IN")})\n- INFLUENCER — 20% (Rs ${Math.round(budget * 0.2).toLocaleString("en-IN")})`;
 
+      // Replace any "model overloaded" error message we persisted with the
+      // fallback summary so the user sees what actually happened.
+      await prisma.agentMessage.deleteMany({
+        where: { threadId, content: { startsWith: "I couldn't generate a response" } }
+      });
+
       try {
         // 1) Create the client
         const clientTool = TOOL_BY_NAME["client.create"];
@@ -589,8 +595,28 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
           }
         }
         finalText = fallbackText + "\n\nI've created the 4 draft campaigns above. They are visible in your dashboard and ready for the Ad Ops Agent to push live once you approve.";
+        await prisma.agentMessage.create({
+          data: {
+            threadId,
+            role: "assistant",
+            content: finalText,
+            toolCalls: JSON.stringify(allToolCalls),
+            model: "fallback.strategy_plan",
+            status: "complete"
+          }
+        });
       } catch (e: any) {
         finalText = `${fallbackText}\n\nFallback planner error: ${e?.message ?? "unknown"}. The campaigns were NOT created.`;
+        await prisma.agentMessage.create({
+          data: {
+            threadId,
+            role: "assistant",
+            content: finalText,
+            toolCalls: JSON.stringify([]),
+            model: "fallback.strategy_plan",
+            status: "complete"
+          }
+        });
       }
     }
 
