@@ -1,4 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="6" fill="#0F172A" />
-  <path d="M9 23 V9 L23 23 V9" stroke="#22D3EE" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <!-- Ink black background with rounded corners -->
+  <rect width="256" height="256" rx="48" fill="#0A0A0A"/>
+
+  <!-- LEFT CLUSTER — white shapes (the "rising" half of the mark) -->
+
+  <!-- Small white triangle (top-left, points right) -->
+  <path d="M40 28 L102 56 L40 70 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- White circle (top-right of left cluster) -->
+  <circle cx="116" cy="44" r="11" fill="#FFFFFF"/>
+
+  <!-- Larger white triangle (middle, points right) -->
+  <path d="M30 70 L106 100 L30 116 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- White rounded dash (lower-left, slight tilt) -->
+  <g transform="rotate(-14 70 158)">
+    <rect x="36" y="148" width="80" height="20" rx="10" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Bottom white circle -->
+  <circle cx="76" cy="208" r="12" fill="#FFFFFF"/>
+
+  <!-- RIGHT CLUSTER — orange shapes (the "elevating" half of the mark) -->
+
+  <!-- Large orange triangle (top, points right) -->
+  <path d="M124 36 L200 70 L124 104 Z" fill="#F26B2A" stroke="#F26B2A" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Smaller orange triangle (middle, points right) -->
+  <path d="M126 120 L184 148 L126 176 Z" fill="#F26B2A" stroke="#F26B2A" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- Orange dot (right of orange triangles) -->
+  <circle cx="216" cy="96" r="10" fill="#F26B2A"/>
 </svg>

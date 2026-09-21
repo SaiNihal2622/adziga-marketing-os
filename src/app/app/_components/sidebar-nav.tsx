@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type Role, type OrgTier } from "@/lib/constants";
 import { roleLabel } from "@/lib/format";
+import { Logo } from "@/components/brand/logo";
 
 type NavItem = { label: string; href: string; icon: React.ReactNode };
 
@@ -93,12 +94,7 @@ export function SidebarNav({
     <aside className="w-64 shrink-0 bg-ink-950 text-ink-100 flex flex-col border-r border-white/5">
       <div className="px-5 py-5 hairline-b border-white/5">
         <Link href="/" className="flex items-center gap-2 group">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M3 13L9 7L13 11L21 3" stroke="#5a85ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="9" cy="7" r="2" fill="#5a85ff" />
-            <circle cx="13" cy="11" r="2" fill="#5a85ff" />
-            <circle cx="21" cy="3" r="2" fill="#e879f9" />
-          </svg>
+          <Logo variant="icon" size={28} theme="dark" />
           <span className="font-semibold">Adziga</span>
         </Link>
         <div className="mt-3 flex items-center gap-2">

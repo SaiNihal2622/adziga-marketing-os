@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "@/components/brand/logo";
 import { PLATFORM_LABELS, TIER_LABELS, TIER_FEATURES } from "@/lib/constants";
 
 export default function MarketingHome() {
@@ -8,7 +9,7 @@ export default function MarketingHome() {
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-ink-100">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <Logo />
+            <Logo variant="icon" size={32} theme="light" />
             <span className="font-semibold text-lg tracking-tight">Adziga</span>
           </Link>
           <nav className="hidden md:flex items-center gap-8 text-sm text-ink-600">
@@ -339,7 +340,7 @@ export default function MarketingHome() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
-              <div className="flex items-center gap-2 mb-3"><Logo /><span className="font-semibold">Adziga</span></div>
+              <div className="flex items-center gap-2 mb-3"><Logo variant="icon" size={28} theme="light" /></div>
               <p className="text-xs text-ink-500">AI-first Advertising & Marketing Operating System.</p>
             </div>
             <div>
@@ -382,16 +383,6 @@ export default function MarketingHome() {
   );
 }
 
-function Logo() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <path d="M3 13L9 7L13 11L21 3" stroke="#243ff0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="9" cy="7" r="2" fill="#243ff0" />
-      <circle cx="13" cy="11" r="2" fill="#243ff0" />
-      <circle cx="21" cy="3" r="2" fill="#d946ef" />
-    </svg>
-  );
-}
 function Check() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="mt-0.5 text-emerald-600 shrink-0"><path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }

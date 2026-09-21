@@ -1,4 +1,5 @@
 import { verifyEmail } from "@/server/services/auth-service";
+import { Logo } from "@/components/brand/logo";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -26,9 +27,8 @@ export default async function VerifyEmailPage({ searchParams }: { searchParams: 
         <div className="absolute top-1/4 -left-32 w-96 h-96 bg-brand-500/30 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-accent-500/30 rounded-full blur-3xl" />
         <div className="relative">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <Logo />
-            <span className="font-semibold text-lg tracking-tight">Adziga</span>
+          <Link href="/" className="inline-flex items-center">
+            <Logo variant="icon" size={40} theme="dark" />
           </Link>
         </div>
         <div className="relative space-y-4 max-w-md">
@@ -47,8 +47,7 @@ export default async function VerifyEmailPage({ searchParams }: { searchParams: 
       <main className="flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           <Link href="/" className="lg:hidden flex items-center gap-2 mb-4 justify-center">
-            <Logo />
-            <span className="font-semibold">Adziga</span>
+            <Logo variant="icon" size={36} theme="light" />
           </Link>
           <div className="space-y-6 text-center">
             {state === "success" && (
@@ -82,13 +81,4 @@ export default async function VerifyEmailPage({ searchParams }: { searchParams: 
   );
 }
 
-function Logo() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <path d="M3 13L9 7L13 11L21 3" stroke="#5a85ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="9" cy="7" r="2" fill="#5a85ff" />
-      <circle cx="13" cy="11" r="2" fill="#5a85ff" />
-      <circle cx="21" cy="3" r="2" fill="#d946ef" />
-    </svg>
-  );
-}
+
