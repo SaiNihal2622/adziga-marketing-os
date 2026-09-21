@@ -9,7 +9,7 @@ import type { Channel, MMMDatapoint, MMMResult, MMMResultRow } from "./types";
  * Models the fact that today's spend drives not just today's conversions
  * but a decaying tail of future conversions.
  */
-function adstock(spendSeries: number[], retentionRate: number = 0.5, maxLag: number = 7): number[] {
+export function adstock(spendSeries: number[], retentionRate: number = 0.5, maxLag: number = 7): number[] {
   const out: number[] = [];
   for (let i = 0; i < spendSeries.length; i++) {
     let weighted = spendSeries[i];

@@ -5,6 +5,7 @@ import { fmtINR, fmtNum, fmtPct } from "@/lib/format";
 import { isOperatorRole } from "./_lib";
 import { PageHeader } from "../_components/page-header";
 import { Sparkline, LineChart, BarChart, DonutChart, FunnelChart } from "../_components/charts";
+import { EmptyState } from "../_components/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -160,6 +161,61 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
       kind: "positive",
       text: `Conversion rate of ${fmtPct(overallConv)} is above the industry average. Your targeting is working.`
     });
+  }
+
+  // Empty-state: new org with no campaigns, no clients, no leads.
+  // Show a focused "first steps" panel so users know exactly what to do.
+  if (campaigns.length === 0 && activeClients === 0) {
+    return (
+      <div className="space-y-6 fade-in">
+        <PageHeader
+          title="Welcome to Adziga"
+          subtitle="Let's get your marketing command center set up."
+        />
+        <div className="card-v0 p-8">
+          <EmptyState
+            illustration="campaign"
+            title="Add your first client"
+            description="Clients are the brands you serve. Create one (or skip if Adziga is for your own brand) and then start adding campaigns, leads, and creatives."
+            primaryAction={{ label: "Add client", href: "/app/clients/new" }}
+            secondaryAction={{ label: "Watch 2-min tour", href: "/docs" }}
+          />
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-4">
+          {[
+            {
+              icon: "â—Ž",
+              title: "Connect Meta, Google, WhatsApp",
+              description: "Sync campaign data automatically. Tier-gated to Pro+.",
+              href: "/app/admin/integrations"
+            },
+            {
+              icon: "â†˜",
+              title: "Invite your team",
+              description: "Founder, Admin, Marketing Manager, Content, Sales, Finance. Audit every action.",
+              href: "/app/admin"
+            },
+            {
+              icon: "âœ¸",
+              title: "Ask the AI Assistant",
+              description: "Context-aware answers grounded in your actual data — not generic marketing advice.",
+              href: "/app/ai"
+            }
+          ].map((c) => (
+            <Link key={c.title} href={c.href} className="card-v0 p-5 hover:border-ink-300 transition-colors">
+              <div className="text-2xl mb-2">{c.icon}</div>
+              <h3 className="text-sm font-semibold text-ink-900 mb-1">{c.title}</h3>
+              <p className="text-xs text-ink-500">{c.description}</p>
+            </Link>
+          ))}
+        </div>
+
+        <div className="text-xs text-ink-500">
+          Tip: signup creates a Founder account. Use <Link href="/app/admin" className="text-brand-600 hover:underline">Admin</Link> to invite teammates and set up billing.
+        </div>
+      </div>
+    );
   }
 
   return (
