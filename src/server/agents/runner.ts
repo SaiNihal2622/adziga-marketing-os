@@ -78,10 +78,14 @@ async function callGeminiForAgent(opts: {
     );
     if (!r.ok) {
       const err = await r.text();
-      console.error("gemini_agent_http_error", r.status, err.slice(0, 200));
+      console.error("gemini_agent_http_error", r.status, err.slice(0, 500));
       return { text: null, toolCalls: [] };
     }
     const data = (await r.json()) as any;
+    if (!data?.candidates?.[0]?.content?.parts?.length) {
+      console.error("gemini_agent_empty", JSON.stringify(data).slice(0, 500));
+      return { text: null, toolCalls: [] };
+    }
     const parts = data?.candidates?.[0]?.content?.parts ?? [];
     const text = parts.find((p: any) => p.text)?.text ?? null;
     const toolCalls: GeminiFunctionCall[] = parts
