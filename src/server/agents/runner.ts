@@ -285,19 +285,37 @@ async function callMiniMaxForAgent(opts: {
 // Agent prompt builder
 // ──────────────────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(agent: {
+async function buildSystemPrompt(agent: {
   name: string;
   role: string;
   description: string | null;
   systemPrompt: string;
   permissions: string;
-}): string {
+}, ctx: { orgId: string; clientId?: string; query: string }): Promise<string> {
+  let precedentBlock = "";
+  if (ctx.query && ctx.query.length >= 4 && (agent.role === "STRATEGY" || agent.role === "AD_OPS" || agent.role === "CONTENT")) {
+    try {
+      const { RetrievalService } = await import("@/server/services/retrieval-service");
+      precedentBlock = await RetrievalService.formatForPrompt({
+        orgId: ctx.orgId,
+        clientId: ctx.clientId,
+        query: ctx.query,
+        limit: 8
+      });
+    } catch {
+      // Retrieval is best-effort; never block the agent on it.
+      precedentBlock = "";
+    }
+  }
+
   return `${agent.systemPrompt}
 
 IDENTITY:
 - You are "${agent.name}" operating inside Adziga.
 - Role: ${agent.role}
 ${agent.description ? `- About: ${agent.description}` : ""}
+
+${precedentBlock ? `\nLEARNING LOOP — institutional memory:\n${precedentBlock}\nUse the precedents above to inform your recommendations. If similar past situations produced a particular outcome, weight your suggestion accordingly. If the user asks "what worked last time" you have the data now.\n` : ""}
 
 RULES:
 1. You are an AI worker for a marketing agency. Your job is to take real actions inside Adziga — create campaigns, allocate budget, write content, schedule WhatsApp, etc.
@@ -449,7 +467,11 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
       can: (perm: string) => allowedPerms.has(perm) || allowedPerms.has("*")
     };
 
-    const systemPrompt = buildSystemPrompt(agent);
+    const systemPrompt = await buildSystemPrompt(agent, {
+      orgId: ctx.orgId,
+      clientId: ctx.clientId,
+      query: opts.userMessage ?? opts.systemKickoff ?? ""
+    });
 
     // Build conversation history for Gemini
     const convo: Array<{ role: "user" | "assistant" | "tool"; content: string; toolName?: string; toolCallId?: string }> = [];
