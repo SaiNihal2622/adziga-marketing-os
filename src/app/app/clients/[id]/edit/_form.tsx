@@ -25,6 +25,9 @@ type Client = {
   tier: string;
   creativePreference: string;
   notes: string | null;
+  acquisitionGoal: number | null;
+  acquisitionGoalUnit: string | null;
+  acquisitionGoalDeadline: string | null;
 };
 
 const CRITICAL_FIELDS = new Set(["monthlyBudget", "tier", "status", "creativePreference"]);
@@ -61,6 +64,15 @@ export function ClientEditForm({ client }: { client: Client }) {
 
     startTransition(async () => {
       try {
+        // Convert YYYY-MM-DD deadline to ISO datetime (Z at end-of-day)
+        if (patch.acquisitionGoalDeadline && typeof patch.acquisitionGoalDeadline === "string") {
+          patch.acquisitionGoalDeadline = new Date(patch.acquisitionGoalDeadline + "T23:59:59.000Z").toISOString();
+        }
+        // Convert empty strings to null for nullable date
+        if (patch.acquisitionGoalDeadline === "") {
+          patch.acquisitionGoalDeadline = null;
+        }
+
         const res = await fetch(`/api/clients/${client.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -153,6 +165,34 @@ export function ClientEditForm({ client }: { client: Client }) {
           ]}
           hint="How the Content Agent routes creative production for this client."
           critical
+        />
+      </Section>
+
+      <Section title="Acquisition goal" hint="What the client told Adziga they want to achieve. Drives the Command Center progress bar.">
+        <Field
+          label="Goal target"
+          name="acquisitionGoal"
+          type="number"
+          defaultValue={client.acquisitionGoal ?? ""}
+          placeholder="e.g. 500"
+        />
+        <Field
+          label="Unit"
+          name="acquisitionGoalUnit"
+          defaultValue={client.acquisitionGoalUnit ?? "CUSTOMERS"}
+          component="select"
+          options={[
+            { value: "CUSTOMERS", label: "Customers" },
+            { value: "QUALIFIED_LEADS", label: "Qualified leads" },
+            { value: "LEADS", label: "Leads" },
+            { value: "REVENUE", label: "Revenue (₹)" }
+          ]}
+        />
+        <Field
+          label="Deadline (optional)"
+          name="acquisitionGoalDeadline"
+          type="date"
+          defaultValue={client.acquisitionGoalDeadline ? new Date(client.acquisitionGoalDeadline).toISOString().slice(0, 10) : ""}
         />
       </Section>
 

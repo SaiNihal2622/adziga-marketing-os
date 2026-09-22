@@ -16,8 +16,10 @@ import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import { PageHeader } from "@/app/app/_components/page-header";
 import { Badge, Button, Card, Kpi, SectionHeader } from "@/app/app/_components/ui";
-import { fmtINR, fmtNum, fmtPct, fmtRelative } from "@/lib/format";
+import { FunnelChart } from "@/app/app/_components/funnel-chart";
+import { fmtINR, fmtNum, fmtPct, fmtRelative, fmtDate } from "@/lib/format";
 import { AttributionService } from "@/server/services/attribution-service";
+import { FunnelService } from "@/server/services/funnel-service";
 
 export const dynamic = "force-dynamic";
 
@@ -36,23 +38,22 @@ export default async function CommandCenter({ params }: { params: { id: string }
   });
   if (!client) notFound();
 
-  // Acquisition goal = "customers in pipeline". Without an explicit goal set,
-  // we infer one from the contract budget and avg-deal-size. The user can
-  // override via Client.acquisitionGoal in a future iteration.
+  // Goal: prefer explicit acquisitionGoal; fall back to inference from budget.
+  const contractBudget = client.monthlyBudget ?? 0;
   const inferredAvgDealSize = client.customers.length > 0
     ? client.customers.reduce((s, c) => s + c.revenue, 0) / client.customers.length
     : 50000;
-  const contractBudget = client.monthlyBudget ?? 0;
-  const inferredGoal = inferredAvgDealSize > 0 && contractBudget > 0
-    ? Math.round((contractBudget * 6) / inferredAvgDealSize) // 6-month runway assumption
-    : 100;
+  const goalUnit = client.acquisitionGoalUnit ?? "CUSTOMERS";
+  const goal = client.acquisitionGoal
+    ?? (inferredAvgDealSize > 0 && contractBudget > 0 ? Math.round((contractBudget * 6) / inferredAvgDealSize) : null);
 
-  const funnel = await AttributionService.orgFunnel(session.orgId, {
-    since: new Date(Date.now() - 90 * 86_400_000)
+  const funnelSnapshot = await FunnelService.snapshot({
+    orgId: session.orgId,
+    clientId: client.id,
+    windowDays: 90
   });
   const leaderboard = await AttributionService.valueAdjustedCpl(session.orgId, { clientId: client.id });
 
-  // Restrict leaderboard / funnel stats to this client only where possible.
   const clientLeads = client.leads;
   const clientCustomers = client.customers;
   const totalLeads = clientLeads.length;
@@ -61,35 +62,56 @@ export default async function CommandCenter({ params }: { params: { id: string }
   const wonRevenue = clientCustomers.reduce((s, c) => s + c.revenue, 0);
   const totalSpend = client.campaigns.reduce((s, c) => s + c.spent, 0);
 
-  const progress = inferredGoal > 0 ? Math.min(100, (wonCustomers / inferredGoal) * 100) : 0;
+  // Progress calculation depends on goal unit
+  const goalValue = goal ?? 0;
+  let progress = 0;
+  let progressActual: number | string = 0;
+  let progressTarget: number | string = "—";
+  if (goalUnit === "REVENUE") {
+    progressActual = wonRevenue;
+    progressTarget = goalValue;
+    progress = goalValue > 0 ? Math.min(100, (wonRevenue / goalValue) * 100) : 0;
+  } else if (goalUnit === "LEADS") {
+    progressActual = totalLeads;
+    progressTarget = goalValue;
+    progress = goalValue > 0 ? Math.min(100, (totalLeads / goalValue) * 100) : 0;
+  } else if (goalUnit === "QUALIFIED_LEADS") {
+    progressActual = qualifiedLeads;
+    progressTarget = goalValue;
+    progress = goalValue > 0 ? Math.min(100, (qualifiedLeads / goalValue) * 100) : 0;
+  } else {
+    progressActual = wonCustomers;
+    progressTarget = goalValue;
+    progress = goalValue > 0 ? Math.min(100, (wonCustomers / goalValue) * 100) : 0;
+  }
   const cac = wonCustomers > 0 ? totalSpend / wonCustomers : 0;
   const budgetUtil = contractBudget > 0 ? Math.min(100, (totalSpend / (contractBudget * 6)) * 100) : 0;
 
-  // Top creative by qualified-lead rate (within last 90d)
+  // Top creative by leads (within client's campaigns)
   const recentCreatives = await prisma.creative.findMany({
     where: { campaign: { clientId: client.id, orgId: session.orgId } },
     include: { campaign: { select: { id: true, name: true } } },
     take: 50
   });
   const topCreative = recentCreatives
-    .filter((c) => c.impressions > 0 || c.leads > 0)
+    .filter((c) => Number(c.impressions) > 0 || Number(c.leads) > 0)
     .sort((a, b) => Number(b.leads) - Number(a.leads))[0];
 
-  // Top channel by value-adjusted CPL (lowest effective CPL wins)
+  // Top channel (lowest effective CPL wins)
   const topChannel = leaderboard
     .filter((c) => c.leads > 0)
     .sort((a, b) => (a.effectiveCpl ?? Infinity) - (b.effectiveCpl ?? Infinity))[0];
 
-  // Worst channel (highest effective CPL) — this is the "current issue" surface
+  // Worst channel (highest effective CPL)
   const worstChannel = leaderboard
     .filter((c) => c.leads > 0 && c.qualified > 0)
     .sort((a, b) => (b.effectiveCpl ?? 0) - (a.effectiveCpl ?? 0))[0];
 
-  // Linear forecast — assumes last 30 days of conversion rate continues
+  // Forecast
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
   const recentCustomers = clientCustomers.filter((c) => new Date(c.acquiredAt) >= thirtyDaysAgo);
   const monthlyRunRate = recentCustomers.length;
-  const monthsToGoal = monthlyRunRate > 0 ? (inferredGoal - wonCustomers) / monthlyRunRate : null;
+  const monthsToGoal = monthlyRunRate > 0 && goalValue > wonCustomers ? (goalValue - wonCustomers) / monthlyRunRate : null;
 
   return (
     <div>
@@ -114,20 +136,34 @@ export default async function CommandCenter({ params }: { params: { id: string }
       <Card padding="lg" className="mb-6 bg-gradient-to-br from-white via-white to-brand-50/40 border-brand-200/60">
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.14em] text-brand-600 font-semibold mb-2">Goal</div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-brand-600 font-semibold">Goal</div>
+              {client.acquisitionGoal ? (
+                <Badge variant="brand" dot>Stated</Badge>
+              ) : (
+                <Badge variant="neutral">Inferred from budget</Badge>
+              )}
+              {client.acquisitionGoalDeadline && (
+                <span className="text-xs text-ink-500">
+                  · by {fmtDate(client.acquisitionGoalDeadline)}
+                </span>
+              )}
+            </div>
             <div className="flex items-baseline gap-3 flex-wrap mb-1">
               <h2 className="text-4xl font-semibold tracking-tighter text-ink-900 tabular-nums">
-                {wonCustomers.toLocaleString("en-IN")}<span className="text-ink-400 text-2xl"> / {inferredGoal.toLocaleString("en-IN")}</span>
+                {goalUnit === "REVENUE" ? fmtINR(Number(progressActual)) : fmtNum(Number(progressActual))}
+                <span className="text-ink-400 text-2xl"> / {goalUnit === "REVENUE" ? fmtINR(Number(progressTarget)) : fmtNum(Number(progressTarget))}</span>
               </h2>
               <Badge variant={progress >= 80 ? "success" : progress >= 40 ? "brand" : "warning"} dot>
                 {progress.toFixed(0)}% complete
               </Badge>
             </div>
             <p className="text-sm text-ink-500 mt-1">
-              Acquired customers vs. inferred 6-month target ({fmtINR(contractBudget)} monthly budget × 6 ÷ ₹{Math.round(inferredAvgDealSize).toLocaleString("en-IN")} avg deal).
+              {client.acquisitionGoal
+                ? `User-defined goal of ${fmtNum(Number(progressTarget))} ${goalUnit.toLowerCase().replace("_", " ")}.`
+                : `Inferred from ${fmtINR(contractBudget)} monthly budget × 6 ÷ ${fmtINR(inferredAvgDealSize)} avg deal. Set a real goal in Edit Profile.`}
             </p>
 
-            {/* Progress bar */}
             <div className="mt-5">
               <div className="h-2 bg-ink-100 rounded-full overflow-hidden">
                 <div
@@ -137,8 +173,8 @@ export default async function CommandCenter({ params }: { params: { id: string }
               </div>
               <div className="mt-2 flex items-center justify-between text-xs text-ink-500 tabular-nums">
                 <span>0</span>
-                <span>{Math.round(inferredGoal / 2).toLocaleString("en-IN")}</span>
-                <span>{inferredGoal.toLocaleString("en-IN")}</span>
+                <span>{goalUnit === "REVENUE" ? fmtINR(Number(progressTarget) / 2) : fmtNum(Number(progressTarget) / 2)}</span>
+                <span>{goalUnit === "REVENUE" ? fmtINR(Number(progressTarget)) : fmtNum(Number(progressTarget))}</span>
               </div>
             </div>
           </div>
@@ -156,39 +192,33 @@ export default async function CommandCenter({ params }: { params: { id: string }
         </div>
       </Card>
 
-      {/* Funnel */}
-      <SectionHeader title="Acquisition funnel" description="Last 90 days. Each stage shows the conversion rate from the previous one." />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-        <FunnelStage
-          label="Leads"
-          value={totalLeads}
-          rate={null}
-          previous={null}
-          tone="neutral"
-        />
-        <FunnelStage
-          label="Qualified"
-          value={qualifiedLeads}
-          rate={totalLeads > 0 ? qualifiedLeads / totalLeads : 0}
-          previous={totalLeads}
-          tone="brand"
-        />
-        <FunnelStage
-          label="Customers"
-          value={wonCustomers}
-          rate={qualifiedLeads > 0 ? wonCustomers / qualifiedLeads : totalLeads > 0 ? wonCustomers / totalLeads : 0}
-          previous={qualifiedLeads}
-          tone="success"
-        />
-        <FunnelStage
-          label="Revenue"
-          value={wonRevenue}
-          rate={null}
-          previous={null}
-          tone="accent"
-          isCurrency
-        />
-      </div>
+      {/* Funnel — full impressions → revenue chain with drop-off flags */}
+      <SectionHeader
+        title="Acquisition funnel"
+        description="Impressions → visitors → leads → qualified → customers → revenue. The leakiest stage is flagged."
+        actions={
+          <Link href={`/app/analytics/funnel?clientId=${client.id}`}>
+            <Button variant="outline" size="sm">Open funnel analytics</Button>
+          </Link>
+        }
+      />
+      <Card padding="lg" className="mb-8">
+        <FunnelChart stages={funnelSnapshot.funnel} currency fmtValue={(n) => fmtINR(n)} />
+        {funnelSnapshot.worstStage && funnelSnapshot.worstStage.severity > 0 && (
+          <div className="mt-4 pt-4 border-t border-ink-100 flex items-start gap-3">
+            <Badge variant={funnelSnapshot.worstStage.severity === 2 ? "danger" : "warning"} dot>
+              Leak
+            </Badge>
+            <div className="text-sm text-ink-700">
+              <strong>{funnelSnapshot.worstStage.label}</strong> is the leakiest stage — only{" "}
+              <strong>{(funnelSnapshot.worstStage.conversionRate! * 100).toFixed(2)}%</strong> of the previous stage reaches it.
+              {funnelSnapshot.worstStage.dropOff !== null && funnelSnapshot.worstStage.dropOff > 0 && (
+                <> Dropped <strong>{fmtNum(funnelSnapshot.worstStage.dropOff)}</strong> units.</>
+              )}
+            </div>
+          </div>
+        )}
+      </Card>
 
       {/* Top channels + current issue */}
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 mb-8">
@@ -365,7 +395,7 @@ export default async function CommandCenter({ params }: { params: { id: string }
               <div className="text-sm font-medium text-ink-900 mb-2">
                 {qualifiedLeads > 0 && wonCustomers === 0
                   ? "Convert qualified leads to customers"
-                  : monthlyRunRate < (inferredGoal / 6) / 30
+                  : monthlyRunRate < (goalValue / 6) / 30
                   ? "Increase monthly acquisition run-rate"
                   : "Maintain acquisition velocity"}
               </div>
@@ -373,7 +403,7 @@ export default async function CommandCenter({ params }: { params: { id: string }
                 {qualifiedLeads > 0 && wonCustomers === 0
                   ? `You have ${fmtNum(qualifiedLeads)} qualified leads with no customers yet. Schedule consultations, send proposals, and let Adziga track the conversion.`
                   : monthlyRunRate < 5
-                  ? `Recent run-rate is ${monthlyRunRate}/month. To hit the goal in 6 months you need ~${Math.ceil(inferredGoal / 6)}/month. Either scale budgets or open new channels.`
+                  ? `Recent run-rate is ${monthlyRunRate}/month. To hit the goal in 6 months you need ~${Math.ceil(goalValue / 6)}/month. Either scale budgets or open new channels.`
                   : `Acquisition run-rate is healthy at ${monthlyRunRate}/month. Focus on incremental wins: creative refresh, audience expansion, and re-engagement of warm leads.`}
               </div>
               <div className="mt-3 flex items-center gap-2">
@@ -398,34 +428,8 @@ export default async function CommandCenter({ params }: { params: { id: string }
   );
 }
 
-function FunnelStage({ label, value, rate, previous, tone, isCurrency }: {
-  label: string;
-  value: number;
-  rate: number | null;
-  previous: number | null;
-  tone: "neutral" | "brand" | "success" | "accent";
-  isCurrency?: boolean;
-}) {
-  const toneRing = {
-    neutral: "ring-ink-200",
-    brand: "ring-brand-200",
-    success: "ring-emerald-200",
-    accent: "ring-accent-200"
-  }[tone];
-
-  return (
-    <div className={`rounded-xl bg-white ring-1 ${toneRing} p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]`}>
-      <div className="text-[10px] uppercase tracking-[0.12em] text-ink-500 font-semibold">{label}</div>
-      <div className="mt-2 text-[26px] font-semibold tracking-tighter tabular-nums text-ink-900">
-        {isCurrency ? fmtINR(value) : fmtNum(value)}
-      </div>
-      {rate !== null && (
-        <div className="mt-1 text-xs text-ink-500 tabular-nums">
-          {fmtPct(rate * 100, 1)}{previous !== null && previous > 0 ? " of prior stage" : ""}
-        </div>
-      )}
-    </div>
-  );
+function FunnelStage_REMOVED() {
+  // Legacy component removed — FunnelChart is used instead.
 }
 
 async function RecentActivity({ orgId, clientId }: { orgId: string; clientId: string }) {

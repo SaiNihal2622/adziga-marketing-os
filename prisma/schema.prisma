@@ -153,6 +153,12 @@ model Client {
   // AI_DESIGNER: client wants AI-generated copy but human designer for visual
   // MANUAL_ONLY: client wants only human-designed (designer/freelancer) creatives, no AI output
   creativePreference String  @default("AI_INHOUSE")
+  // Marketing OS goal — what the client told us they want to achieve.
+  // When set, the Command Center shows actual-vs-goal progress.
+  // When null, the Command Center infers a target from budget × avg deal size.
+  acquisitionGoal        Int?     // e.g. 500 customers in 90 days
+  acquisitionGoalUnit    String?  @default("CUSTOMERS") // CUSTOMERS | REVENUE | LEADS | QUALIFIED_LEADS
+  acquisitionGoalDeadline DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

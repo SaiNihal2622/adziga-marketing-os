@@ -20,7 +20,10 @@ const patchSchema = z.object({
   status: z.enum(["ONBOARDING", "ACTIVE", "PAUSED", "CHURNED"]).optional(),
   tier: z.enum(["FREE", "PRO", "ZIGA_PLUS"]).optional(),
   creativePreference: z.enum(["AI_INHOUSE", "AI_DESIGNER", "MANUAL_ONLY"]).optional(),
-  notes: z.string().max(2000).nullable().optional()
+  notes: z.string().max(2000).nullable().optional(),
+  acquisitionGoal: z.number().int().positive().nullable().optional(),
+  acquisitionGoalUnit: z.enum(["CUSTOMERS", "REVENUE", "LEADS", "QUALIFIED_LEADS"]).optional(),
+  acquisitionGoalDeadline: z.string().datetime().nullable().optional()
 });
 
 export const GET = authedRoute(
