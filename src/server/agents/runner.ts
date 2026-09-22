@@ -222,7 +222,7 @@ async function callMiniMaxForAgent(opts: {
   tools: ToolSpec[];
   maxOutputTokens?: number;
 }): Promise<GeminiResponse & { finishReason?: GeminiFinishReason }> {
-  const baseURL = process.env.MINIMAX_BASE_URL ?? "https://agent.minimax.io/mavis/api/v1/llm/v1";
+  const baseURL = process.env.MINIMAX_BASE_URL ?? "https://api.minimax.io/v1";
   const model = process.env.MINIMAX_MODEL ?? "MiniMax-M3";
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 60_000);

@@ -512,51 +512,125 @@ export const creativeTools: ToolSpec[] = [
       const size = SIZE[aspectRatio] ?? SIZE["1:1"]!;
       const w = size.w;
       const h = size.h;
+      const brief = String(input.brief);
+      const style = String(input.style ?? "studio");
+
       let buffer: Buffer | null = null;
       let model = "adziga-placeholder-v1";
+      let mimeType: "image/png" | "image/jpeg" | "image/svg+xml" = "image/svg+xml";
+
+      // ── Strategy: try real image models in order, fall through to placeholder.
+      // 1. Gemini image-capable models (in case 2.0-flash-exp / imagen-3 / 2.5-flash-image are enabled)
+      // 2. Pollinations.ai — free, no key, public Flux endpoint
+      // 3. Branded SVG placeholder
+
+      const geminiImageModels = ["imagen-3.0-generate-002", "gemini-2.0-flash-exp", "gemini-2.5-flash-image-preview"];
+      const promptText = `${brief}. ${style} style, no text overlays, no watermarks, advertising creative, professional composition.`;
+
       if (apiKey) {
-        try {
-          const r = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-              body: JSON.stringify({
-                contents: [{ role: "user", parts: [{ text: `${input.brief}. ${input.style ?? "studio"} style. No text overlays.` }] }],
-                generationConfig: { temperature: 0.9, responseModalities: ["TEXT", "IMAGE"], imageConfig: { aspectRatio: input.aspectRatio ?? "1:1" } }
-              })
+        for (const m of geminiImageModels) {
+          try {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 25_000);
+            try {
+              // Imagen endpoint (predict) vs Gemini multimodal endpoint have different shapes.
+              const isImagen = m.startsWith("imagen");
+              const url = isImagen
+                ? `https://generativelanguage.googleapis.com/v1beta/models/${m}:predict?key=${apiKey}`
+                : `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
+              const body = isImagen
+                ? { instances: [{ prompt: promptText }], parameters: { sampleCount: 1, aspectRatio } }
+                : {
+                    contents: [{ role: "user", parts: [{ text: promptText }] }],
+                    generationConfig: {
+                      temperature: 0.9,
+                      responseModalities: ["TEXT", "IMAGE"],
+                      imageConfig: { aspectRatio }
+                    }
+                  };
+              const r = await fetch(url, {
+                method: "POST",
+                headers: isImagen ? { "Content-Type": "application/json" } : { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+                body: JSON.stringify(body),
+                signal: ctrl.signal
+              });
+              if (r.ok) {
+                const data = await r.json();
+                let inlineB64: string | null = null;
+                if (isImagen) {
+                  inlineB64 = data?.predictions?.[0]?.bytesBase64Encoded ?? null;
+                } else {
+                  const inline = data?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
+                  inlineB64 = inline?.data ?? null;
+                }
+                if (inlineB64) {
+                  buffer = Buffer.from(inlineB64, "base64");
+                  model = m;
+                  mimeType = "image/png";
+                  break;
+                }
+              }
+            } finally {
+              clearTimeout(t);
             }
-          );
-          if (r.ok) {
-            const data = await r.json();
-            const inline = data?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData;
-            if (inline?.data) {
-              buffer = Buffer.from(inline.data, "base64");
-              model = "gemini-2.0-flash-exp";
-            }
+          } catch (e) {
+            // try next model
           }
-        } catch (e) { /* fall through */ }
+        }
       }
+
+      // Pollinations fallback — free, no key. Uses the public Flux endpoint.
       if (!buffer) {
-        const truncated = String(input.brief).slice(0, 80);
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 30_000);
+          try {
+            const polUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptText)}?width=${w}&height=${h}&nologo=true&model=flux&enhance=true`;
+            const r = await fetch(polUrl, { signal: ctrl.signal });
+            if (r.ok) {
+              const ct = r.headers.get("content-type") ?? "";
+              if (ct.startsWith("image/")) {
+                const arr = await r.arrayBuffer();
+                if (arr.byteLength > 1024) {
+                  buffer = Buffer.from(arr);
+                  model = "pollinations-flux";
+                  mimeType = ct.includes("jpeg") || ct.includes("jpg") ? "image/jpeg" : "image/png";
+                }
+              }
+            }
+          } finally {
+            clearTimeout(t);
+          }
+        } catch (e) {
+          // fall through
+        }
+      }
+
+      // Final fallback: branded SVG placeholder
+      if (!buffer) {
+        const truncated = brief.slice(0, 80);
         const svg = `<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f36d21"/><stop offset="100%" stop-color="#0a0a0a"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/><text x="${w/2}" y="${h/2}" text-anchor="middle" fill="white" font-family="system-ui" font-size="${Math.max(28, w/18)}" font-weight="700">${truncated}</text></svg>`;
         buffer = Buffer.from(svg, "utf8");
+        model = "adziga-placeholder-v1";
+        mimeType = "image/svg+xml";
       }
+
+      const ext = mimeType === "image/jpeg" ? "jpg" : mimeType === "image/png" ? "png" : "svg";
       const asset = await saveAsset({
         orgId: ctx.orgId,
         buffer,
-        mimeType: model.startsWith("gemini") ? "image/png" : "image/svg+xml",
-        originalName: `${randomUUID()}.${model.startsWith("gemini") ? "png" : "svg"}`,
+        mimeType,
+        originalName: `${randomUUID()}.${ext}`,
         folder: "ai-generated"
       });
       const creative = await ctx.prisma.creative.create({
         data: {
           orgId: ctx.orgId,
           campaignId: input.campaignId ? String(input.campaignId) : null,
-          name: String(input.brief).slice(0, 60),
+          name: brief.slice(0, 60),
           format: "IMAGE",
           platform: String(input.platform ?? "META"),
-          primaryCopy: String(input.brief),
+          primaryCopy: brief,
           mediaUrl: asset.url,
           thumbnailUrl: asset.url,
           source: "AI_GENERATED",
@@ -566,10 +640,10 @@ export const creativeTools: ToolSpec[] = [
       });
       return {
         ok: true,
-        output: { creativeId: creative.id, url: asset.url, model },
+        output: { creativeId: creative.id, url: asset.url, model, mimeType },
         recordAction: {
           type: "creative.generateImage",
-          summary: `Generated image for "${creative.name}"`,
+          summary: `Generated image for "${creative.name}" (${model})`,
           payload: { creativeId: creative.id, model, url: asset.url }
         }
       };

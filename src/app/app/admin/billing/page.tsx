@@ -468,6 +468,153 @@ export default async function BillingPage() {
           </a>
         </div>
       </section>
+
+      {/* ─── Razorpay setup guide ───────────────────────────────────────── */}
+      <SetupGuide />
     </div>
+  );
+}
+
+/**
+ * Razorpay setup walkthrough. Shown to admins so they know exactly what to
+ * click in the Razorpay dashboard to wire up billing. Direct links use the
+ * production Razorpay dashboard URLs — these open in a new tab.
+ */
+function SetupGuide() {
+  const razorpayConfigured =
+    typeof process !== "undefined" &&
+    !!process.env.RAZORPAY_KEY_ID &&
+    !!process.env.RAZORPAY_KEY_SECRET &&
+    process.env.RAZORPAY_KEY_ID !== "rzp_live_...";
+
+  const steps: Array<{ title: string; body: React.ReactNode; link?: { label: string; href: string } }> = [
+    {
+      title: "1. Create a Razorpay account",
+      body: (
+        <>
+          If you haven&apos;t already, sign up on Razorpay using your business PAN + bank account.
+          Verification takes ~24h. Use the same email you use for Adziga so invoices go to the right place.
+        </>
+      ),
+      link: { label: "Open Razorpay signup →", href: "https://dashboard.razorpay.com/signup" }
+    },
+    {
+      title: "2. Generate API keys",
+      body: (
+        <>
+          Go to <strong>Settings → API Keys</strong> in the Razorpay dashboard. Click <em>Generate Live Key</em>.
+          Copy both the <strong>Key ID</strong> (<code>rzp_live_...</code>) and the <strong>Key Secret</strong>.
+          You&apos;ll only see the secret once — save it somewhere safe before closing the modal.
+        </>
+      ),
+      link: { label: "Open API Keys →", href: "https://dashboard.razorpay.com/app/keys" }
+    },
+    {
+      title: "3. Create subscription plans",
+      body: (
+        <>
+          Go to <strong>Subscriptions → Plans</strong>. Create two plans that match the Adziga tiers:
+          <br />
+          <ul className="mt-2 space-y-1.5 text-xs text-ink-600 list-disc list-inside">
+            <li><strong>Pro</strong> — Recurring monthly, ₹4,900 / month</li>
+            <li><strong>Ziga Plus</strong> — Recurring monthly, ₹24,900 / month</li>
+          </ul>
+          <span className="block mt-2 text-xs text-ink-500">Note the <code>plan_...</code> ID of each — we&apos;ll need it for env vars.</span>
+        </>
+      ),
+      link: { label: "Open Plans →", href: "https://dashboard.razorpay.com/app/subscriptions/plans" }
+    },
+    {
+      title: "4. Set up the webhook",
+      body: (
+        <>
+          Go to <strong>Settings → Webhooks</strong>. Create a new webhook with URL{" "}
+          <code className="text-xs bg-ink-50 px-1.5 py-0.5 rounded">https://adziga-marketing-os.vercel.app/api/billing/webhook</code>{" "}
+          and enable these events: <em>subscription.activated</em>, <em>subscription.charged</em>,{" "}
+          <em>subscription.cancelled</em>, <em>subscription.completed</em>, <em>payment.failed</em>.
+          Copy the <strong>webhook secret</strong>.
+        </>
+      ),
+      link: { label: "Open Webhooks →", href: "https://dashboard.razorpay.com/app/webhooks" }
+    },
+    {
+      title: "5. Add the env vars",
+      body: (
+        <>
+          Once you have all four values, run this in your terminal from the project root:
+          <pre className="mt-2 text-[12px] leading-relaxed bg-ink-950 text-ink-100 rounded-lg p-3 font-mono whitespace-pre-wrap">
+{`node scripts/setup-credentials.mjs razorpay \\
+  --key-id rzp_live_xxxxxxxxxxxx \\
+  --key-secret xxxxxxxxxxxxxxxxxxxxxxxx \\
+  --webhook-secret xxxxxxxxxxxxxxxxxxxxxxxx \\
+  --plan-pro plan_xxxxxxxxxxxx \\
+  --plan-ziga-plus plan_xxxxxxxxxxxx`}
+          </pre>
+          <span className="block mt-2 text-xs text-ink-500">
+            The script writes to <code>.env</code> locally and pushes to Vercel production. You&apos;ll be prompted for confirmation.
+          </span>
+        </>
+      )
+    }
+  ];
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-4 pb-4 border-b border-ink-200/70">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.14em] text-brand-600 font-semibold mb-1">Setup</div>
+          <h2 className="text-xl font-semibold tracking-tight text-ink-900">Wire up Razorpay</h2>
+          <p className="text-sm text-ink-500 mt-1">
+            Razorpay powers recurring billing, GST-compliant invoices, and UPI/card/netbanking for Indian customers.
+            Follow the five steps below — direct links open the Razorpay dashboard.
+          </p>
+        </div>
+        {razorpayConfigured ? (
+          <Badge variant="success" dot>Configured</Badge>
+        ) : (
+          <Badge variant="warning" dot>Not configured</Badge>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {steps.map((s, i) => (
+          <div key={i} className="rounded-xl border border-ink-200/70 bg-white p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex items-center justify-center size-7 rounded-full bg-brand-50 text-brand-700 text-xs font-semibold shrink-0">
+                {i + 1}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-[14.5px] font-semibold tracking-tight text-ink-900">{s.title}</h3>
+                <div className="text-sm text-ink-600 mt-2 leading-relaxed">{s.body}</div>
+                {s.link && (
+                  <a
+                    href={s.link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-3 text-sm text-brand-600 hover:text-brand-700 font-medium"
+                  >
+                    {s.link.label}
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-ink-200/70 bg-ink-50/40 p-5">
+        <div className="flex items-start gap-3">
+          <Badge variant="info">Heads up</Badge>
+          <div className="text-sm text-ink-700 leading-relaxed">
+            <strong>Why Razorpay?</strong> Built for India — UPI, RuPay, GST-compliant invoicing, and INR settlement
+            without the 4–5% premium that cross-border gateways (Stripe, Adyen) charge on Indian cards. Razorpay&apos;s
+            Subscriptions API gives us native support for monthly recurring plans with prorated upgrades, dunning,
+            and webhooks out of the box. For an Indian-focused marketing SaaS, the alternative is Stripe Atlas
+            (expensive + offshore settlement) or direct UPI deep-links (no recurring billing). Razorpay is the
+            pragmatic default.
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
