@@ -25,8 +25,8 @@ export async function POST(req: NextRequest) {
   const event = JSON.parse(body);
   const eventId = event.event ?? "unknown";
 
-  // Persist raw delivery
-  await prisma.webhookDelivery.create({
+  // Persist raw delivery. We update this row at the end with the final status.
+  const delivery = await prisma.webhookDelivery.create({
     data: {
       provider: "razorpay",
       endpoint: "/api/webhooks/razorpay",
@@ -38,8 +38,26 @@ export async function POST(req: NextRequest) {
 
   try {
     const r = await handleRazorpayEvent(eventId, event.payload ?? event);
+    await prisma.webhookDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        status: r.processed ? "processed" : "failed",
+        processedAt: new Date(),
+        attempts: { increment: 1 },
+        error: r.processed ? null : (r.reason ?? null)
+      }
+    });
     return NextResponse.json({ ok: r.processed, reason: r.reason });
   } catch (e: any) {
+    await prisma.webhookDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        status: "failed",
+        processedAt: new Date(),
+        attempts: { increment: 1 },
+        error: e.message ?? String(e)
+      }
+    });
     logger.error("billing.webhook_handler_failed", { event: eventId, error: e.message });
     return NextResponse.json({ error: "handler failed" }, { status: 500 });
   }

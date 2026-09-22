@@ -58,6 +58,26 @@ export const CampaignAnomalyService = {
   async detectForOrg(orgId: string, days: number = 30): Promise<CampaignAnomaly[]> {
     const since = new Date(Date.now() - days * 86_400_000);
 
+    // Sprint 12d — load per-org anomaly overrides from Organization.metadata.
+    // Admins can tune threshold (default 2.5σ) and the industry-ceiling
+    // multiplier (default 0.8 = pause when CPL > 80% of cplMax).
+    const orgRow = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { metadata: true }
+    });
+    let sigmaThreshold = 2.5;
+    let industryCeilingMultiplier = 0.8;
+    if (orgRow?.metadata) {
+      try {
+        const meta = JSON.parse(orgRow.metadata) as Record<string, unknown>;
+        const ov = meta.anomalyOverrides as { sigmaThreshold?: number; industryCeilingMultiplier?: number } | undefined;
+        if (ov?.sigmaThreshold) sigmaThreshold = Math.max(1, Math.min(5, Number(ov.sigmaThreshold)));
+        if (ov?.industryCeilingMultiplier) industryCeilingMultiplier = Math.max(0.1, Math.min(2, Number(ov.industryCeilingMultiplier)));
+      } catch {
+        // malformed metadata — ignore
+      }
+    }
+
     // 1. Get all active campaigns (anything with status=ACTIVE).
     const campaigns = await prisma.campaign.findMany({
       where: { orgId, status: { in: ["ACTIVE", "PAUSED"] } },
@@ -144,7 +164,7 @@ export const CampaignAnomalyService = {
           date: d.date,
           value: metricValue(d, metric)
         }));
-        const result = detectAnomalies({ metric, series, threshold: 2.5, direction: "both" });
+        const result = detectAnomalies({ metric, series, threshold: sigmaThreshold, direction: "both" });
         for (const a of result.anomalies) {
           metricFindings.push({
             metric,
@@ -167,7 +187,7 @@ export const CampaignAnomalyService = {
         const totalSpendHist = dailySeries.reduce((s, d) => s + d.spend, 0);
         const totalLeadsHist = dailySeries.reduce((s, d) => s + d.leads, 0);
         const histCpl = totalLeadsHist > 0 ? totalSpendHist / totalLeadsHist : 0;
-        const histExceeds = industryCplMax !== null && histCpl > industryCplMax * 0.8;
+        const histExceeds = industryCplMax !== null && histCpl > industryCplMax * industryCeilingMultiplier;
         out.push({
           campaignId: c.id,
           campaignName: c.name,
@@ -184,7 +204,7 @@ export const CampaignAnomalyService = {
           metrics: [],
           recommendAction: histExceeds ? "pause" : "none",
           reason: histExceeds
-            ? `CPL ₹${histCpl.toFixed(0)} exceeds 80% of industry ceiling ₹${industryCplMax?.toFixed(0)} for ${industry}/${c.platform}. Pause recommended (rolling window OK; industry-relative check triggered).`
+            ? `CPL ₹${histCpl.toFixed(0)} exceeds ${(industryCeilingMultiplier * 100).toFixed(0)}% of industry ceiling ₹${industryCplMax?.toFixed(0)} for ${industry}/${c.platform}. Pause recommended (rolling window OK; industry-relative check triggered).`
             : (hasRealSpendData
                 ? "No anomalies detected in the last window."
                 : "Insufficient spend history (need ≥5 daily AdSpend rows). Connect ad-platform sync for anomaly detection."),
@@ -208,13 +228,13 @@ export const CampaignAnomalyService = {
       const bench = industry ? benchByKey.get(`${industry}:${c.platform}`) ?? null : null;
       const industryCplMax = bench?.cplMax ?? null;
       const latestCpl = metricFindings.find((f) => f.metric === "cpl")?.observed ?? null;
-      const exceedsIndustryCeiling = industryCplMax !== null && latestCpl !== null && latestCpl > industryCplMax * 0.8;
+      const exceedsIndustryCeiling = industryCplMax !== null && latestCpl !== null && latestCpl > industryCplMax * industryCeilingMultiplier;
 
       let recommendAction: Recommendation = "watch";
       let reason = "Anomalies detected but within watch thresholds.";
       if (exceedsIndustryCeiling) {
         recommendAction = "pause";
-        reason = `CPL ₹${latestCpl?.toFixed(0)} exceeds 80% of industry ceiling ₹${industryCplMax?.toFixed(0)} for ${industry}/${c.platform}. Pause recommended regardless of Z-score.`;
+        reason = `CPL ₹${latestCpl?.toFixed(0)} exceeds ${(industryCeilingMultiplier * 100).toFixed(0)}% of industry ceiling ₹${industryCplMax?.toFixed(0)} for ${industry}/${c.platform}. Pause recommended regardless of Z-score.`;
       } else if (cplSpike && cplSpike.severity === "critical") {
         recommendAction = "pause";
         reason = `CPL is ${cplSpike.deltaPct.toFixed(0)}% above baseline (z=${cplSpike.zScore.toFixed(1)}). Critical spike — recommend pausing and reviewing creative.`;

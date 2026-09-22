@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "invalid signature" }, { status: 400 });
   }
 
-  await prisma.webhookDelivery.create({
+  const delivery = await prisma.webhookDelivery.create({
     data: { provider: "meta", endpoint: "/api/webhooks/meta", signature, payload: body, status: "processing" }
   });
 
@@ -27,15 +27,24 @@ export async function POST(req: NextRequest) {
   try {
     payload = JSON.parse(body);
   } catch {
+    await prisma.webhookDelivery.update({
+      where: { id: delivery.id },
+      data: { status: "failed", error: "invalid json", processedAt: new Date() }
+    });
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
 
   if (payload.object !== "page" || !Array.isArray(payload.entry)) {
+    await prisma.webhookDelivery.update({
+      where: { id: delivery.id },
+      data: { status: "processed", processedAt: new Date() }
+    });
     return NextResponse.json({ ok: true, skipped: true });
   }
 
   // Process each entry → each change → each leadgen event
   let leadCount = 0;
+  let errored = false;
   for (const entry of payload.entry) {
     for (const change of entry.changes ?? []) {
       if (change.field !== "leadgen") continue;
@@ -86,11 +95,20 @@ export async function POST(req: NextRequest) {
         });
         leadCount++;
       } catch (e: any) {
+        errored = true;
         logger.error("meta.webhook_lead_create_failed", { error: e.message });
       }
     }
   }
 
+  await prisma.webhookDelivery.update({
+    where: { id: delivery.id },
+    data: {
+      status: errored ? "failed" : "processed",
+      processedAt: new Date(),
+      attempts: { increment: 1 }
+    }
+  });
   return NextResponse.json({ ok: true, leadsProcessed: leadCount });
 }
 

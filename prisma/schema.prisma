@@ -197,6 +197,7 @@ model Client {
   decisions  DecisionLog[]
   experiments Experiment[]
   onboarding Onboarding?
+  revenues    Revenue[]
 
   @@index([orgId])
   @@index([status])
@@ -519,6 +520,7 @@ model Customer {
   client          Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   lead            Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
   acquiredCampaign Campaign?   @relation("AcquiredCampaign", fields: [acquiredCampaignId], references: [id], onDelete: SetNull)
+  revenues        Revenue[]
 
   @@index([orgId])
 }
@@ -528,15 +530,27 @@ model Revenue {
   orgId      String
   clientId   String?
   campaignId String?
+  // Sprint 12b — when this revenue event is attributed to a specific customer
+  // (repeat purchase / upsell), we record the customer row id. Used to
+  // compute true cohort-LTV instead of just avg deal size at conversion.
+  customerId String?
   amount     Float
   currency   String   @default("INR")
   source     String?
+  // product | subscription | upsell | referral | other — used for LTV segmenting
+  kind       String   @default("product")
+  // External reference (invoice id, subscription id) — dedupe idempotently.
+  externalRef String?  @unique
   recordedAt DateTime @default(now())
 
-  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client   Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  customer Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@index([orgId])
   @@index([recordedAt])
+  @@index([customerId])
+  @@index([clientId])
 }
 
 model AdSpend {

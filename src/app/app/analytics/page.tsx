@@ -82,6 +82,9 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: { 
             <Link href="/app/analytics/conversion-lag" className="px-2 py-1 rounded bg-ink-100 hover:bg-ink-200">
               Conversion lag
             </Link>
+            <Link href="/app/analytics/ltv" className="px-2 py-1 rounded bg-ink-100 hover:bg-ink-200">
+              Customer LTV
+            </Link>
             <span className="text-ink-500">Range:</span>
             {[["7", "7d"], ["30", "30d"], ["90", "90d"]].map(([k, l]) => (
               <Link key={k} href={`/app/analytics?range=${k}`} className={`px-2 py-1 rounded ${days === Number(k) ? "bg-brand-600 text-white" : "bg-ink-100 hover:bg-ink-200"}`}>{l}</Link>
