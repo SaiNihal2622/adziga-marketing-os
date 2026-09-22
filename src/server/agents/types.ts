@@ -327,21 +327,40 @@ export const campaignTools: ToolSpec[] = [
 export const budgetTools: ToolSpec[] = [
   {
     name: "budget.allocate",
-    description: "Compute a recommended budget allocation across channels using Thompson sampling. Returns allocation but does NOT create campaigns (call campaign.create to materialize).",
+    description:
+      "Compute a recommended budget allocation across channels using the value-based allocator. Each channel is weighted by its value-per-rupee (revenue or predicted value from qualified × customer rate × avg deal size) rather than raw CPL. Returns per-platform allocation, rupee amounts, and per-channel reasoning. Does NOT create campaigns — call campaign.create to materialize.",
     inputSchema: {
       type: "object",
       properties: {
         clientId: { type: "string" },
         totalBudget: { type: "number" },
-        days: { type: "number", default: 30 }
+        days: { type: "number", default: 60 }
       },
       required: ["totalBudget"]
     },
     requires: "budget.read",
     handler: async (input, ctx) => {
-      const { optimizeBudgetForOrg } = await import("@/lib/analytics/index");
-      const result = await optimizeBudgetForOrg(ctx.orgId, Number(input.totalBudget), Number(input.days ?? 30));
-      return { ok: true, output: result };
+      const { AttributionService } = await import("@/server/services/attribution-service");
+      const totalBudget = Number(input.totalBudget);
+      const days = Number(input.days ?? 60);
+      const result = await AttributionService.valueBasedAllocate(ctx.orgId, {
+        totalBudget,
+        clientId: input.clientId ? String(input.clientId) : undefined,
+        since: new Date(Date.now() - days * 86_400_000)
+      });
+      return {
+        ok: true,
+        output: result,
+        recordAction: {
+          type: "budget.allocate",
+          summary: `Allocated ₹${totalBudget.toLocaleString("en-IN")} across ${result.allocations.length} channels (value-based)`,
+          payload: {
+            totalBudget,
+            topChannel: result.allocations[0]?.platform ?? null,
+            reasoning: result.reasoning
+          }
+        }
+      };
     }
   }
 ];

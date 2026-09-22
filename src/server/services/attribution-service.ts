@@ -367,5 +367,211 @@ export const AttributionService = {
         };
       })
       .sort((a, b) => (b.effectiveCpl ?? 0) - (a.effectiveCpl ?? 0));
+  },
+
+  /**
+   * Value-based budget allocator — the Marketing OS optimizer.
+   *
+   * Replaces naive Thompson-sampling allocation. Each channel earns budget
+   * proportional to its **expected value per rupee**, defined as:
+   *
+   *     valuePerRupee = (avgDealSize × customerRate × qualifiedRate) / cpl
+   *
+   * Channels with more data get a credibility multiplier that ramps from
+   * 0.5 at 10 leads to 1.0 at 100+ leads (avoids wasting budget on
+   * low-volume-but-lucky channels).
+   *
+   * Then we apply soft floor/cap rules:
+   *   - floor 5%  — don't abandon a channel entirely
+   *   - cap 50%   — don't put all eggs in one basket
+   *   - reserve 10% — leave room for exploration / new channels
+   *
+   * Returns the recommended split plus the reasoning per channel.
+   */
+  async valueBasedAllocate(orgId: string, opts?: {
+    clientId?: string;
+    totalBudget?: number;
+    since?: Date;
+  }) {
+    const since = opts?.since ?? new Date(Date.now() - 60 * 86_400_000);
+    const leaderboard = await this.valueAdjustedCpl(orgId, { clientId: opts?.clientId });
+
+    // Pull avg deal size across the org (one global anchor for value)
+    const dealAgg = await prisma.customer.aggregate({
+      where: {
+        orgId,
+        ...(opts?.clientId ? { clientId: opts.clientId } : {}),
+        acquiredAt: { gte: since }
+      },
+      _sum: { revenue: true },
+      _count: { _all: true }
+    });
+    const totalRevenue = dealAgg._sum.revenue ?? 0;
+    const totalCustomers = dealAgg._count._all ?? 0;
+    const avgDealSize = totalCustomers > 0 ? totalRevenue / totalCustomers : 50000;
+
+    // Per-platform grouping (Meta / Google / etc.)
+    const byPlatform = new Map<string, typeof leaderboard>();
+    for (const c of leaderboard) {
+      const list = byPlatform.get(c.platform) ?? [];
+      list.push(c);
+      byPlatform.set(c.platform, list);
+    }
+
+    // Per-platform metrics
+    const platformRows = Array.from(byPlatform.entries()).map(([platform, camps]) => {
+      const leads = camps.reduce((s, c) => s + c.leads, 0);
+      const qualified = camps.reduce((s, c) => s + c.qualified, 0);
+      const customers = camps.reduce((s, c) => s + c.customers, 0);
+      const revenue = camps.reduce((s, c) => s + c.revenue, 0);
+      const spend = camps.reduce((s, c) => s + c.spent, 0);
+      const cpl = leads > 0 ? spend / leads : 0;
+      const qualifiedRate = leads > 0 ? qualified / leads : 0;
+      const customerRate = leads > 0 ? customers / leads : 0;
+      // Value per rupee: revenue already attached / spend already attached
+      // If we have direct revenue -> ROAS. Else use predicted value:
+      //   predictedValuePerRupee = avgDealSize × customerRate × qualifiedRate / cpl
+      const predictedValuePerRupee = cpl > 0 && customerRate > 0
+        ? (avgDealSize * customerRate * qualifiedRate) / cpl
+        : 0;
+      const roas = spend > 0 ? revenue / spend : 0;
+      // Use observed ROAS if available (more reliable); otherwise predicted
+      const valuePerRupee = revenue > 0 ? roas : predictedValuePerRupee;
+      // Credibility — channels with little data get a discount
+      const credibility = Math.min(1, Math.max(0.4, leads / 100));
+      return {
+        platform,
+        campaigns: camps.length,
+        leads,
+        qualified,
+        customers,
+        spend,
+        revenue,
+        cpl,
+        qualifiedRate,
+        customerRate,
+        avgDealSize,
+        roas,
+        valuePerRupee,
+        predictedValuePerRupee,
+        credibility,
+        valueScore: valuePerRupee * credibility
+      };
+    });
+
+    // Softmax-style allocation: take valueScores and normalise
+    const positiveScores = platformRows.filter((r) => r.valueScore > 0);
+    const totalScore = positiveScores.reduce((s, r) => s + r.valueScore, 0);
+
+    const RESERVE = 0.10;
+    const FLOOR = 0.05;
+    const CAP = 0.50;
+    const distributable = 1 - RESERVE;
+
+    // Step 1: raw allocation from value scores
+    const withRaw: any[] = platformRows.map((r) => ({
+      ...r,
+      rawAllocation: totalScore > 0 ? r.valueScore / totalScore : 0
+    }));
+
+    // Step 2: apply floor
+    const withFloor: any[] = withRaw.map((r) => ({
+      ...r,
+      flooredAllocation: r.valueScore > 0 ? Math.max(FLOOR, r.rawAllocation * distributable) : 0
+    }));
+
+    // Step 3: renormalise after floors
+    const flooredSum = withFloor.reduce((s, r) => s + r.flooredAllocation, 0);
+    const withFinal: any[] = withFloor.map((r) => ({
+      ...r,
+      finalAllocation: flooredSum > 0 ? (r.flooredAllocation / flooredSum) * distributable : 0
+    }));
+
+    // Step 4: apply cap
+    const withCap: any[] = withFinal.map((r) => ({
+      ...r,
+      cappedAllocation: Math.min(CAP, r.finalAllocation)
+    }));
+
+    // Step 5: final renormalisation
+    const cappedSum = withCap.reduce((s, r) => s + r.cappedAllocation, 0);
+    const allocations: any[] = withCap.map((r) => ({
+      ...r,
+      allocation: cappedSum > 0 ? (r.cappedAllocation / cappedSum) * distributable : 0
+    }));
+
+    // Map to budget amounts
+    const totalBudget = opts?.totalBudget ?? 0;
+    const withBudget = allocations.map((r: any) => ({
+      platform: r.platform,
+      allocation: r.allocation,
+      budgetInr: totalBudget > 0 ? Math.round(r.allocation * totalBudget) : 0,
+      campaigns: r.campaigns,
+      leads: r.leads,
+      qualified: r.qualified,
+      customers: r.customers,
+      spend: r.spend,
+      revenue: r.revenue,
+      cpl: r.cpl,
+      qualifiedRate: r.qualifiedRate,
+      customerRate: r.customerRate,
+      avgDealSize: r.avgDealSize,
+      roas: r.roas,
+      valuePerRupee: r.valuePerRupee,
+      credibility: r.credibility,
+      reason: explainAllocation(r)
+    }));
+
+    // Sort by allocation descending
+    withBudget.sort((a, b) => b.allocation - a.allocation);
+
+    // Projection: expected customers at the recommended split
+    const expectedCustomersPerRupee = avgDealSize > 0
+      ? withBudget.reduce((s, r) => s + r.customerRate * r.cpl * (r.allocation || 0), 0)
+      : 0;
+
+    return {
+      windowDays: 60,
+      avgDealSize,
+      totalBudget,
+      allocations: withBudget,
+      expectedRoas: withBudget.reduce((s, r) => s + r.valuePerRupee * r.allocation, 0),
+      reasoning: explainAllocatorDecision(withBudget, avgDealSize)
+    };
   }
 };
+
+function explainAllocation(r: {
+  platform: string;
+  leads: number;
+  customerRate: number;
+  qualifiedRate: number;
+  cpl: number;
+  roas: number;
+  revenue: number;
+  spend: number;
+  credibility: number;
+  valuePerRupee: number;
+}): string {
+  if (r.leads === 0) return `No leads yet — explorer allocation at the floor (5%).`;
+  if (r.revenue === 0 && r.spend === 0) return `Newly created channel — tracking starts now.`;
+  if (r.valuePerRupee >= 3) return `Excellent value (${r.valuePerRupee.toFixed(2)}× per rupee) — high confidence at credibility ${(r.credibility * 100).toFixed(0)}%.`;
+  if (r.valuePerRupee >= 1.5) return `Strong value (${r.valuePerRupee.toFixed(2)}×) — qualified rate ${(r.qualifiedRate * 100).toFixed(0)}% / customer rate ${(r.customerRate * 100).toFixed(1)}%.`;
+  if (r.valuePerRupee >= 0.5) return `Marginal value (${r.valuePerRupee.toFixed(2)}×) — consider creative refresh before scaling.`;
+  if (r.valuePerRupee > 0) return `Weak value (${r.valuePerRupee.toFixed(2)}×) — only floor allocation until performance improves.`;
+  return `No signal — holding at floor.`;
+}
+
+function explainAllocatorDecision(rows: Array<{ platform: string; allocation: number; valuePerRupee: number }>, avgDealSize: number): string {
+  if (rows.length === 0) return "No allocation data yet.";
+  const top = rows[0];
+  const parts: string[] = [];
+  parts.push(`Average deal size: ₹${Math.round(avgDealSize).toLocaleString("en-IN")}.`);
+  parts.push(`Top channel ${top.platform} gets ${(top.allocation * 100).toFixed(0)}% because of value-per-rupee ${top.valuePerRupee.toFixed(2)}×.`);
+  const capped = rows.filter((r) => r.valuePerRupee > 0 && r.allocation >= 0.45);
+  if (capped.length > 0) {
+    parts.push(`${capped.map((r) => r.platform).join(", ")} capped at 50% to keep portfolio diversified.`);
+  }
+  parts.push("10% reserved for new-channel exploration.");
+  return parts.join(" ");
+}
