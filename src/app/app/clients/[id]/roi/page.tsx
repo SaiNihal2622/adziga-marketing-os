@@ -89,6 +89,12 @@ export default async function ClientRoiPage({
             {d}d
           </Link>
         ))}
+        <a
+          href={`/api/analytics/roi/export?clientId=${params.id}&days=${days}`}
+          className="ml-2 px-3 py-1 rounded-md bg-ink-100 hover:bg-ink-200 text-ink-700"
+        >
+          ↓ CSV
+        </a>
       </div>
 
       {/* Top-line KPIs */}

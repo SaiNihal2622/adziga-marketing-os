@@ -80,6 +80,9 @@ export default async function ClientDetail({ params }: { params: { id: string } 
         <Kpi label="Open briefs" value={String(openBriefs)} tone={openBriefs > 0 ? "accent" : "neutral"} hint="designer work" />
       </div>
 
+      {/* Sprint 10d — embedded cohort retention strip */}
+      <CohortStrip clientId={client.id} />
+
       {/* Campaigns + Account side panel */}
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 mb-8">
         <Card padding="none">
@@ -257,6 +260,93 @@ export default async function ClientDetail({ params }: { params: { id: string } 
         <Snapshot title="Events" link="/app/events" empty="No events scheduled." items={client.events.map((e) => ({ title: e.name, sub: `${e.type} · ${fmtDate(e.startAt)}`, status: e.status }))} />
         <Snapshot title="Reports" link="/app/reports" empty="No reports published." items={client.reports.map((r) => ({ title: r.title, sub: `${fmtDate(r.periodStart)} → ${fmtDate(r.periodEnd)}`, status: r.status }))} />
         <Snapshot title="Requests" link="/app/requests" empty="No client requests." items={client.requests.map((r) => ({ title: r.title, sub: `${r.category} · ${r.priority}`, status: r.status }))} />
+      </div>
+    </div>
+  );
+}
+
+// Sprint 10d — embedded cohort retention strip on the client detail page.
+// Renders the last 6 monthly cohorts as a compact heatmap + cumulative
+// conversion column. Full version lives at /app/clients/[id]/cohorts.
+async function CohortStrip({ clientId }: { clientId: string }) {
+  const { CohortService } = await import("@/server/services/cohort-service");
+  const { requireSession } = await import("@/lib/session");
+  const session = await requireSession();
+  const cohort = await CohortService.leadToCustomerCohort(session.orgId, clientId, 6);
+
+  if (cohort.note) return null;
+  if (cohort.cohortSizes.every((s) => s === 0)) return null;
+
+  const maxRate = Math.max(...cohort.matrix.flat().map((v, i) => {
+    const rowIdx = Math.floor(i / (cohort.months + 1));
+    return cohort.cohortSizes[rowIdx] > 0 ? v / cohort.cohortSizes[rowIdx] : 0;
+  }));
+
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h3 className="text-sm font-semibold text-ink-700">Lead → customer cohort retention</h3>
+          <p className="text-xs text-ink-500 mt-0.5">
+            Last 6 monthly cohorts · {cohort.cohortSizes.reduce((s, v) => s + v, 0)} leads ·{" "}
+            {(cohort.cumulativeConversion.reduce((s, v) => s + v, 0) / cohort.cohortSizes.filter((s) => s > 0).length * 100).toFixed(1)}% avg cumulative conversion
+          </p>
+        </div>
+        <Link href={`/app/clients/${clientId}/cohorts`} className="text-xs text-brand-600 hover:underline">
+          Full cohort matrix →
+        </Link>
+      </div>
+      <div className="overflow-x-auto bg-white rounded-lg border border-ink-200 p-3">
+        <table className="text-xs border-separate border-spacing-1">
+          <thead>
+            <tr>
+              <th className="text-left px-2 py-1 text-ink-500 font-medium">Cohort</th>
+              <th className="text-right px-2 py-1 text-ink-500 font-medium">Size</th>
+              {Array.from({ length: cohort.months + 1 }).map((_, j) => (
+                <th key={j} className="px-2 py-1 text-ink-500 font-medium text-center min-w-[48px]">
+                  {j === cohort.months ? "open" : `M${j}`}
+                </th>
+              ))}
+              <th className="text-right px-2 py-1 text-ink-500 font-medium">Cum</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cohort.cohortLabels.map((label, i) => {
+              const total = cohort.cohortSizes[i] || 1;
+              return (
+                <tr key={label}>
+                  <td className="px-2 py-1 font-mono text-ink-900">{label}</td>
+                  <td className="px-2 py-1 text-right font-mono text-ink-700">{cohort.cohortSizes[i]}</td>
+                  {cohort.matrix[i].map((count, j) => {
+                    const r = cohort.retention[i][j];
+                    const intensity = maxRate > 0 ? r / maxRate : 0;
+                    let cls = "bg-ink-100 text-ink-400";
+                    if (intensity >= 0.5) cls = "bg-emerald-500 text-white";
+                    else if (intensity >= 0.25) cls = "bg-emerald-300 text-emerald-900";
+                    else if (intensity >= 0.1) cls = "bg-emerald-100 text-emerald-800";
+                    else if (r >= 0.05) cls = "bg-amber-100 text-amber-800";
+                    else if (r > 0) cls = "bg-rose-100 text-rose-700";
+                    return (
+                      <td key={j} className={`px-2 py-1 text-center rounded ${cls}`}>
+                        {count > 0 ? (
+                          <div>
+                            <div className="font-mono">{count}</div>
+                            <div className="text-[9px] opacity-75">{(r * 100).toFixed(0)}%</div>
+                          </div>
+                        ) : (
+                          <span className="text-ink-300">·</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-1 text-right font-mono font-semibold text-ink-900">
+                    {(cohort.cumulativeConversion[i] * 100).toFixed(0)}%
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

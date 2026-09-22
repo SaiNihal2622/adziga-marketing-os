@@ -1208,6 +1208,78 @@ export const reportTools: ToolSpec[] = [
         }
       };
     }
+  },
+  {
+    name: "analytics.ingestSpend",
+    description:
+      "Sprint 10a — bulk-ingest daily ad-spend rows into Adziga. Use this when the team (or a cron) needs to push Meta/Google/manual spend data. Each row has {campaignId or campaignExternalId, date (YYYY-MM-DD), amount, platform}. Idempotent — re-ingesting the same data is safe.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        rows: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              campaignId: { type: "string" },
+              campaignExternalId: { type: "string" },
+              date: { type: "string", description: "YYYY-MM-DD" },
+              amount: { type: "number" },
+              platform: { type: "string" },
+              currency: { type: "string" },
+              source: { type: "string" }
+            },
+            required: ["date", "amount", "platform"]
+          }
+        }
+      },
+      required: ["rows"]
+    },
+    requires: "analytics.read",
+    handler: async (input, ctx) => {
+      if (!ctx.can("analytics.read")) return { ok: false, error: "permission denied" };
+      const { AdSpendIngestionService } = await import("@/server/services/ad-spend-ingestion");
+      const rows = (input.rows ?? []) as any[];
+      const result = await AdSpendIngestionService.upsertDailySpend(ctx.orgId, rows, {
+        userId: ctx.userId
+      });
+      return {
+        ok: true,
+        output: result,
+        recordAction: {
+          type: "analytics.ingestSpend",
+          summary: `Ingested ${result.accepted} ad-spend rows (${result.rejected} rejected) for ${result.campaignsTouched.length} campaigns`,
+          payload: { accepted: result.accepted, rejected: result.rejected, campaignsTouched: result.campaignsTouched.length }
+        }
+      };
+    }
+  },
+  {
+    name: "analytics.pullMetaInsights",
+    description:
+      "Sprint 10a — pull last N days of Meta Marketing Insights for a single campaign and ingest them into AdSpend. Requires META_ACCESS_TOKEN env var and the campaign's externalId to be set to the Meta campaign id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        campaignId: { type: "string" },
+        days: { type: "number", default: 7 }
+      },
+      required: ["campaignId"]
+    },
+    requires: "analytics.read",
+    handler: async (input, ctx) => {
+      const { AdSpendIngestionService } = await import("@/server/services/ad-spend-ingestion");
+      try {
+        const result = await AdSpendIngestionService.pullMetaCampaignInsights(
+          ctx.orgId,
+          String(input.campaignId),
+          Number(input.days ?? 7)
+        );
+        return { ok: true, output: result };
+      } catch (e) {
+        return { ok: false, error: String((e as Error).message ?? e) };
+      }
+    }
   }
 ];
 

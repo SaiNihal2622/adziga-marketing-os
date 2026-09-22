@@ -78,6 +78,12 @@ export default async function CohortsPage({
             {m}mo
           </Link>
         ))}
+        <a
+          href={`/api/analytics/cohorts/export?clientId=${params.id}&months=${months}`}
+          className="ml-2 px-3 py-1 rounded-md bg-ink-100 hover:bg-ink-200 text-ink-700"
+        >
+          ↓ CSV
+        </a>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
