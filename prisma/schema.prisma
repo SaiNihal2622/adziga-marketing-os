@@ -280,6 +280,8 @@ model Campaign {
   creatives   Creative[]
   briefs      Brief[]
   leadEntries Lead[]
+  leadTouches LeadTouch[]
+  acquiredCustomers Customer[] @relation("AcquiredCampaign")
   experiments Experiment[]
   reports     Report[]
   decisions   DecisionLog[]
@@ -418,6 +420,9 @@ model Lead {
   revenue          Float     @default(0)
   followUps        String?
   lastContactAt    DateTime?
+  // When the lead converted to a Customer (status -> WON). Same value as wonAt
+  // but kept as a distinct field for clean attribution rollups.
+  convertedAt      DateTime?
   wonAt            DateTime?
   lostAt           DateTime?
   createdAt        DateTime  @default(now())
@@ -429,6 +434,7 @@ model Lead {
   influencer Influencer?    @relation(fields: [influencerId], references: [id], onDelete: SetNull)
   event      MarketingEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
   customer   Customer?
+  touches    LeadTouch[]
 
   @@index([orgId])
   @@index([clientId])
@@ -437,21 +443,51 @@ model Lead {
   @@index([campaignId])
 }
 
-model Customer {
+// Multi-touch attribution — every campaign/creative that interacts with a lead
+// gets recorded here so we can do proper first-touch / last-touch / time-decay
+// attribution. The Lead's primary `campaignId` is first-touch for fast queries;
+// LeadTouch[] holds the full journey.
+model LeadTouch {
   id         String   @id @default(cuid())
   orgId      String
-  clientId   String
-  leadId     String?  @unique
-  name       String
-  email      String?
-  phone      String?
-  revenue    Float    @default(0)
-  acquiredAt DateTime @default(now())
-  notes      String?
+  leadId     String
+  campaignId String?
+  creativeId String?
+  // IMPRESSION | CLICK | VISIT | FORM_SUBMIT | QUALIFICATION | RETARGET
+  touchType  String   @default("CLICK")
+  touchedAt  DateTime @default(now())
+  // Free-form context (referrer url, click id, ad set id, etc.)
+  metadata   String?
 
-  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  client Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  lead   Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  lead     Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  campaign Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([leadId])
+  @@index([campaignId])
+  @@index([touchedAt])
+}
+
+model Customer {
+  id                   String   @id @default(cuid())
+  orgId                String
+  clientId             String
+  leadId               String?  @unique
+  // The campaign that drove conversion (last-touch by default).
+  // Nullable when the customer came in without a recorded lead (organic, walk-in).
+  // Denormalized from Lead for fast per-campaign funnel rollups.
+  acquiredCampaignId   String?
+  name                 String
+  email                String?
+  phone                String?
+  revenue              Float    @default(0)
+  acquiredAt           DateTime @default(now())
+  notes                String?
+
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client          Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  lead            Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  acquiredCampaign Campaign?   @relation("AcquiredCampaign", fields: [acquiredCampaignId], references: [id], onDelete: SetNull)
 
   @@index([orgId])
 }

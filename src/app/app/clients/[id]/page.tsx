@@ -51,11 +51,14 @@ export default async function ClientDetail({ params }: { params: { id: string } 
         right={
           <>
             <ClientStatusBadge status={client.status} />
+            <Link href={`/app/clients/${client.id}/command-center`}>
+              <Button variant="primary">Command Center</Button>
+            </Link>
             <Link href={`/app/ai?clientId=${client.id}`}>
-              <Button variant="outline">Open AI workspace</Button>
+              <Button variant="outline">AI workspace</Button>
             </Link>
             <Link href={`/app/clients/${client.id}/edit`}>
-              <Button>Edit profile</Button>
+              <Button variant="outline">Edit</Button>
             </Link>
           </>
         }
