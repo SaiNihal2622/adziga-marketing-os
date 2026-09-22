@@ -1285,6 +1285,9 @@ model OrchestrationPlan {
   expectedRoas  Float
   confidence    Float    @default(0)
   reasoning     String
+  // Sprint 13a — multi-step plan executor state. JSON-encoded array of
+  // {kind, status, input, output, ...} steps. Populated by PlanOrchestrator.
+  steps         String?
   status        String    @default("DRAFT")
   internalReviewerId String?
   internalReviewedAt DateTime?

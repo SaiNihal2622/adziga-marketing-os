@@ -187,19 +187,43 @@ export const LeadService = {
     const l = await prisma.lead.findFirst({ where: { id: leadId, orgId } });
     if (!l) throw new NotFoundError("Lead", leadId);
 
-    const score = scoreLead({
+    // Sprint 13d — boost score based on tags. quality:hot adds +20, region:tier1 +10, industry:<known> +5.
+    const tagBoost = (l.tags ?? "")
+      .split(",")
+      .reduce((acc, tag) => {
+        const t = tag.trim();
+        if (t === "quality:hot") return acc + 20;
+        if (t === "quality:warm") return acc + 10;
+        if (t === "quality:cold") return acc - 10;
+        if (t === "region:tier1") return acc + 10;
+        if (t.startsWith("region:international")) return acc + 15;
+        if (t.startsWith("industry:") && t !== "industry:other") return acc + 5;
+        return acc;
+      }, 0);
+
+    const baseScore = scoreLead({
       source: l.source,
       city: l.city,
       email: l.email,
       phone: l.phone,
       campaignId: l.campaignId
     });
+    const score = Math.max(0, Math.min(100, baseScore + tagBoost));
 
     await prisma.$transaction([
       prisma.leadScore.upsert({
         where: { leadId: l.id },
-        update: { score, factors: JSON.stringify({ source: l.source, city: l.city }), computedAt: new Date() },
-        create: { orgId, leadId: l.id, score, factors: JSON.stringify({ source: l.source, city: l.city }) }
+        update: {
+          score,
+          factors: JSON.stringify({ source: l.source, city: l.city, tags: l.tags, baseScore, tagBoost }),
+          computedAt: new Date()
+        },
+        create: {
+          orgId,
+          leadId: l.id,
+          score,
+          factors: JSON.stringify({ source: l.source, city: l.city, tags: l.tags, baseScore, tagBoost })
+        }
       }),
       prisma.lead.update({ where: { id: l.id }, data: { score } })
     ]);
