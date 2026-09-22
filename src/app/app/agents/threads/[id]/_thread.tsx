@@ -49,17 +49,126 @@ export function ThreadView({
     };
     setMessages((prev) => [...prev, optimistic]);
 
+    // Placeholder for the live assistant turn that grows as events stream in.
+    const placeholderId = `live-${Date.now()}`;
+    let liveText = "";
+    const liveActions: Array<{ type: string; summary: string }> = [];
+
     try {
-      const r = await fetch(`/api/agents/threads/${threadId}/messages`, {
+      // Try streaming endpoint first (gives live updates as the agent works).
+      const r = await fetch(`/api/agents/threads/${threadId}/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ content: text })
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.message ?? data.error ?? "send failed");
-      const tr = await fetch(`/api/agents/threads/${threadId}`);
-      const td = await tr.json();
-      setMessages(td.messages);
+
+      if (!r.ok || !r.body) {
+        // Fall back to the non-streaming endpoint if SSE isn't supported.
+        const r2 = await fetch(`/api/agents/threads/${threadId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: text })
+        });
+        const data = await r2.json();
+        if (!r2.ok) throw new Error(data.message ?? data.error ?? "send failed");
+        const tr = await fetch(`/api/agents/threads/${threadId}`);
+        const td = await tr.json();
+        setMessages(td.messages);
+        return;
+      }
+
+      // Stream the SSE response
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let liveAssistantId: string | null = null;
+
+      // Seed the live assistant message
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: placeholderId,
+          role: "assistant",
+          content: "",
+          toolCalls: null,
+          status: "streaming",
+          createdAt: new Date().toISOString()
+        }
+      ]);
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+
+        // Parse SSE events: lines of "event: type\ndata: json\n\n"
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) >= 0) {
+          const evt = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          const lines = evt.split("\n");
+          let evType = "message";
+          let evData = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) evType = line.slice(7).trim();
+            else if (line.startsWith("data: ")) evData += line.slice(6);
+          }
+          if (!evData || evType === "done") continue;
+          let payload: any;
+          try {
+            payload = JSON.parse(evData);
+          } catch {
+            continue;
+          }
+
+          if (evType === "assistant_message") {
+            liveAssistantId = payload.messageId;
+            liveText = payload.content ?? "";
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === placeholderId
+                  ? { ...m, id: payload.messageId ?? placeholderId, content: liveText, status: "streaming" }
+                  : m
+              )
+            );
+          } else if (evType === "tool_started") {
+            liveText += `\n\n> ⚙️ Running ${payload.tool}…\n`;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === placeholderId ? { ...m, content: liveText } : m))
+            );
+          } else if (evType === "tool_completed") {
+            liveText += `> ✓ ${payload.tool} done.\n`;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === placeholderId ? { ...m, content: liveText } : m))
+            );
+          } else if (evType === "action_recorded") {
+            liveActions.push({ type: payload.actionType, summary: payload.summary });
+            liveText += `\n• ${payload.summary}\n`;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === placeholderId ? { ...m, content: liveText } : m))
+            );
+          } else if (evType === "run_completed") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === placeholderId
+                  ? {
+                      ...m,
+                      id: liveAssistantId ?? placeholderId,
+                      content: payload.text ?? liveText,
+                      toolCalls: JSON.stringify(liveActions.map((a) => ({ name: a.type, args: a }))),
+                      status: "complete"
+                    }
+                  : m
+              )
+            );
+          } else if (evType === "error") {
+            setError(payload.message);
+            setMessages((prev) =>
+              prev.map((m) => (m.id === placeholderId ? { ...m, status: "error" } : m))
+            );
+          }
+        }
+      }
     } catch (e: any) {
       setError(e?.message ?? "failed");
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));

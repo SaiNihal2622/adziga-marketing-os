@@ -322,6 +322,20 @@ export type AgentRunResult = {
   rounds: number;
 };
 
+/**
+ * Streaming event types — emitted by the runner when an `onEvent` callback
+ * is provided. The SSE endpoint consumes these to give the chat UI a
+ * live, "vibe" feel even when Gemini returns the full response in one go.
+ */
+export type AgentStreamEvent =
+  | { type: "user_message"; messageId: string; content: string }
+  | { type: "assistant_message"; messageId: string; content: string; toolCalls: Array<{ tool: string; args: any }> }
+  | { type: "tool_started"; tool: string; args: any }
+  | { type: "tool_completed"; tool: string; args: any; result: any }
+  | { type: "action_recorded"; actionId: string; actionType: string; summary: string }
+  | { type: "run_completed"; runId: string; text: string; rounds: number }
+  | { type: "error"; message: string };
+
 export type AgentRunOptions = {
   agentId: string;
   threadId?: string;
@@ -334,13 +348,10 @@ export type AgentRunOptions = {
   invokedBy?: string;
   /** act-as orgId if Adziga team is operating on a client's org */
   actAsOrgId?: string;
+  /** Streaming callback — receives AgentStreamEvent as the run progresses */
+  onEvent?: (ev: AgentStreamEvent) => void | Promise<void>;
 };
 
-/**
- * Run an Agent once. Returns the runId, the final assistant text, and the
- * tool calls that were made. Safe to call concurrently — the runner is
- * stateless except for the Prisma client.
- */
 export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResult> {
   const apiKey = process.env.GEMINI_API_KEY?.replace(/[^\x20-\x7E]/g, "").trim();
   if (!apiKey) {
@@ -370,11 +381,24 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
     threadId = thread.id;
   }
 
+  // Helper for streaming events — fires-and-forgets the callback.
+  const emit = (ev: AgentStreamEvent) => {
+    if (opts.onEvent) {
+      try {
+        const r = opts.onEvent(ev);
+        if (r && typeof (r as any).catch === "function") (r as any).catch(() => {});
+      } catch {
+        /* never let an emit error break the run */
+      }
+    }
+  };
+
   // Persist the inbound message
   if (opts.userMessage) {
-    await prisma.agentMessage.create({
+    const userMsg = await prisma.agentMessage.create({
       data: { threadId, role: "user", content: opts.userMessage }
     });
+    emit({ type: "user_message", messageId: userMsg.id, content: opts.userMessage });
   } else if (opts.systemKickoff) {
     await prisma.agentMessage.create({
       data: { threadId, role: "system", content: opts.systemKickoff }
@@ -525,11 +549,13 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
         }
         const tool = TOOL_BY_NAME[tc.name];
         try {
+          emit({ type: "tool_started", tool: tc.name, args: tc.args });
           const result = await tool.handler(tc.args, ctx);
+          emit({ type: "tool_completed", tool: tc.name, args: tc.args, result: result.output ?? result });
           intentForActions.push({ name: tc.name, args: tc.args, result });
           allToolCalls.push({ tool: tc.name, args: tc.args, result });
           if (result.recordAction) {
-            await prisma.agentAction.create({
+            const act = await prisma.agentAction.create({
               data: {
                 orgId: agent.orgId,
                 agentId: agent.id,
@@ -544,6 +570,7 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
                 approvedAt: result.ok ? new Date() : null
               }
             });
+            emit({ type: "action_recorded", actionId: act.id, actionType: result.recordAction.type, summary: result.recordAction.summary });
             await prisma.auditLog.create({
               data: {
                 orgId: agent.orgId,
@@ -561,7 +588,7 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
       }
 
       // Persist the assistant turn
-      await prisma.agentMessage.create({
+      const assistantMsg = await prisma.agentMessage.create({
         data: {
           threadId,
           role: "assistant",
@@ -572,6 +599,12 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
           model: "gemini-flash-latest",
           status: "complete"
         }
+      });
+      emit({
+        type: "assistant_message",
+        messageId: assistantMsg.id,
+        content: llm.text ?? "",
+        toolCalls: intentForActions.map((a) => ({ tool: a.name, args: a.args }))
       });
 
       // If no tool calls, this is the final answer
@@ -723,6 +756,7 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
         durationMs: Date.now() - start
       }
     });
+    emit({ type: "run_completed", runId: run.id, text: finalText ?? "", rounds });
     await prisma.agent.update({
       where: { id: agent.id },
       data: { totalRuns: { increment: 1 }, lastRunAt: new Date() }
@@ -749,6 +783,6 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
       where: { id: agent.id },
       data: { lastError: e?.message ?? String(e) }
     }).catch(() => null);
+    emit({ type: "error", message: e?.message ?? String(e) });
     throw e;
-  }
-}
+  }}

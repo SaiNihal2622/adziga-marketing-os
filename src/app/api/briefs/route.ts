@@ -1,6 +1,7 @@
 // /api/briefs — list + create designer briefs
 import { authedRoute } from "@/server/api";
 import { listBriefsSchema, createBriefSchema } from "@/server/schemas";
+import { AppError } from "@/server/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export const POST = authedRoute(createBriefSchema, async (ctx, body) => {
   // can create briefs. Clients cannot create designer briefs for their own
   // work (they're the recipients, not the creators).
   if (["CLIENT_ADMIN", "CLIENT_MEMBER"].includes(ctx.role)) {
-    throw Object.assign(new Error("Clients can't create designer briefs"), { status: 403 });
+    throw new AppError("FORBIDDEN", "Clients can't create designer briefs", 403);
   }
   const brief = await ctx.prisma.brief.create({
     data: {
