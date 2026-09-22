@@ -731,6 +731,139 @@ export const briefTools: ToolSpec[] = [
 // ──────────────────────────────────────────────────────────────────────────
 // Lead management tools
 // ──────────────────────────────────────────────────────────────────────────
+// ROI + Predictive tools (Sprint 7a / 7b)
+// ──────────────────────────────────────────────────────────────────────────
+
+export const analyticsReadTools: ToolSpec[] = [
+  {
+    name: "analytics.roi",
+    description:
+      "Compute a per-client ROI report. Includes revenue, spend, net ROI, ROAS, CAC, average deal size, total leads/qualified/customers, channel breakdown, funnel waterfall, daily revenue vs spend time series, and per-experiment impact estimates. Use this when the user asks 'what's our ROI for client X' or wants to compare clients.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string" },
+        days: { type: "number", default: 60 }
+      },
+      required: ["clientId"]
+    },
+    requires: "analytics.read",
+    handler: async (input, ctx) => {
+      if (!ctx.can("analytics.read")) return { ok: false, error: "permission denied: analytics.read" };
+      const { ROIService } = await import("@/server/services/roi-service");
+      const report = await ROIService.clientRoiReport(ctx.orgId, String(input.clientId), Number(input.days ?? 60));
+      // Don't dump the full time series — just KPI + top 5 channel rows + top 3 experiments.
+      return {
+        ok: true,
+        output: {
+          client: report.client.businessName,
+          windowDays: report.window.days,
+          kpis: report.kpis,
+          topChannels: report.byChannel.slice(0, 5),
+          topExperiments: report.experiments.slice(0, 3),
+          alerts: report.alerts,
+          waterfall: report.waterfall
+        }
+      };
+    }
+  },
+  {
+    name: "analytics.roi.org",
+    description:
+      "Compute the org-wide ROI dashboard across all clients. Top-line numbers, top 10 clients by revenue, channel breakdown, top experiments.",
+    inputSchema: {
+      type: "object",
+      properties: { days: { type: "number", default: 60 } }
+    },
+    requires: "analytics.read",
+    handler: async (input, ctx) => {
+      if (!ctx.can("analytics.read")) return { ok: false, error: "permission denied: analytics.read" };
+      const { ROIService } = await import("@/server/services/roi-service");
+      const d = await ROIService.orgWideDashboard(ctx.orgId, Number(input.days ?? 60));
+      return {
+        ok: true,
+        output: {
+          windowDays: d.window.days,
+          kpis: d.kpis,
+          topClients: d.topClients,
+          topPlatforms: d.byPlatform.slice(0, 8),
+          topExperiments: d.byExperiment.slice(0, 5),
+          alerts: d.alerts
+        }
+      };
+    }
+  },
+  {
+    name: "analytics.predict",
+    description:
+      "Predict outcomes (expected leads, customers, revenue, ROAS, CAC) for a proposed marketing plan BEFORE running it. Uses Bayesian shrinkage of per-channel historical conversion with industry benchmarks. Returns expected + a confidence band. Use this when the user asks 'if we spend X on Y platform, what can we expect?'",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string" },
+        industry: { type: "string" },
+        plan: {
+          type: "object",
+          properties: {
+            totalBudget: { type: "number" },
+            channels: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  platform: { type: "string" },
+                  totalBudget: { type: "number" },
+                  days: { type: "number" }
+                },
+                required: ["platform", "totalBudget"]
+              }
+            }
+          },
+          required: ["channels"]
+        }
+      },
+      required: ["plan"]
+    },
+    requires: "analytics.read",
+    handler: async (input, ctx) => {
+      if (!ctx.can("analytics.read")) return { ok: false, error: "permission denied: analytics.read" };
+      const { PredictiveOutcomeModel } = await import("@/server/services/predictive-service");
+      const plan = (input.plan ?? {}) as any;
+      const prediction = await PredictiveOutcomeModel.predict({
+        orgId: ctx.orgId,
+        clientId: input.clientId ? String(input.clientId) : undefined,
+        industry: input.industry ? String(input.industry) : undefined,
+        plan: {
+          totalBudget: plan.totalBudget ? Number(plan.totalBudget) : undefined,
+          channels: (plan.channels ?? []).map((c: any) => ({
+            platform: String(c.platform),
+            totalBudget: Number(c.totalBudget),
+            days: c.days ? Number(c.days) : undefined
+          }))
+        }
+      });
+      return {
+        ok: true,
+        output: {
+          expectedCpl: prediction.expectedCpl,
+          expectedCac: prediction.expectedCac,
+          expectedConversionRate: prediction.expectedConversionRate,
+          expectedCustomers: prediction.expectedCustomers,
+          expectedRevenue: prediction.expectedRevenue,
+          expectedRoas: prediction.expectedRoas,
+          totalBudget: prediction.totalBudget,
+          confidence: prediction.confidence,
+          sampleSize: prediction.sampleSize,
+          band: prediction.band,
+          perChannel: prediction.perChannel,
+          caveat: prediction.caveat
+        }
+      };
+    }
+  }
+];
+
+// ──────────────────────────────────────────────────────────────────────────
 // Experiment tools (A/B testing — Sprint 6)
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -1070,7 +1203,8 @@ export const ALL_TOOLS: ToolSpec[] = [
   ...leadTools,
   ...reportTools,
   ...competitorTools,
-  ...experimentTools
+  ...experimentTools,
+  ...analyticsReadTools
 ];
 
 export const TOOL_BY_NAME: Record<string, ToolSpec> = Object.fromEntries(

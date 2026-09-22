@@ -26,3 +26,5 @@ scripts/.after-*.png
 # Vercel CLI token — read from env var in scripts/setup-credentials.mjs
 # Never commit .vercel or any PAT
 
+
+.env*.local

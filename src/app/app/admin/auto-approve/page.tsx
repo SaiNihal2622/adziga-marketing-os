@@ -72,6 +72,7 @@ const ACTIONS: PolicyAction[] = ["update", "delete", "launch", "pause", "archive
 
 export default function AutoApprovePage() {
   const [policies, setPolicies] = useState<AutoApprovePolicy[]>([]);
+  const [library, setLibrary] = useState<Array<{ id: string; name: string; description?: string; entityType: PolicyEntityType; action: PolicyAction }>>([]);
   const [log, setLog] = useState<AutoApplyLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -88,6 +89,7 @@ export default function AutoApprovePage() {
         fetch("/api/admin/auto-apply-log?limit=50").then((r) => r.json())
       ]);
       setPolicies(p.policies ?? []);
+      setLibrary(p.library ?? []);
       setLog(l.items ?? []);
     } catch (e) {
       setError((e as Error).message);
@@ -258,6 +260,55 @@ export default function AutoApprovePage() {
           value={log.filter((l) => withinDays(l.decidedAt, 7)).length}
         />
       </div>
+
+      {/* Pre-built templates (Sprint 7c) */}
+      {library.length > 0 && (
+        <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/40">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-medium text-slate-700">Pre-built policy templates</h2>
+            <span className="text-[11px] text-slate-500">{library.length} safe-by-construction templates — instantiate to add to your policy list.</span>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
+            {library.map((tpl) => {
+              const already = policies.some((p) => p.createdById === "template:" + tpl.id || p.createdById === ("template:" + tpl.id));
+              return (
+                <div key={tpl.id} className="border border-slate-200 bg-white rounded-lg p-3 space-y-1">
+                  <div className="text-xs font-medium text-slate-900">{tpl.name}</div>
+                  <div className="text-[11px] text-slate-600 leading-snug line-clamp-3">{tpl.description}</div>
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="text-[10px] font-mono text-slate-500">
+                      {tpl.entityType}.{tpl.action}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setError(null);
+                        try {
+                          const res = await fetch("/api/admin/policy-library/instantiate", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ templateId: tpl.id })
+                          });
+                          if (!res.ok) {
+                            const j = await res.json().catch(() => ({}));
+                            throw new Error(j.message ?? `failed: ${res.status}`);
+                          }
+                          await reload();
+                        } catch (e) {
+                          setError((e as Error).message);
+                        }
+                      }}
+                      disabled={already}
+                      className="text-[11px] px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {already ? "Added" : "Instantiate"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Editor + list */}

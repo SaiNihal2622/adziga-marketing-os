@@ -73,6 +73,9 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: { 
         subtitle="Unified marketing data model. Platform metrics  Business metrics. Compare periods, channels, and sources."
         right={
           <div className="flex items-center gap-2 text-xs">
+            <Link href="/app/analytics/roi" className="px-2 py-1 rounded bg-brand-600 text-white hover:bg-brand-700">
+              ROI dashboard
+            </Link>
             <span className="text-ink-500">Range:</span>
             {[["7", "7d"], ["30", "30d"], ["90", "90d"]].map(([k, l]) => (
               <Link key={k} href={`/app/analytics?range=${k}`} className={`px-2 py-1 rounded ${days === Number(k) ? "bg-brand-600 text-white" : "bg-ink-100 hover:bg-ink-200"}`}>{l}</Link>

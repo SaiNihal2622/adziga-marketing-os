@@ -49,7 +49,8 @@ const policyUpsertSchema = policySchema.extend({
 
 export const GET = authedRoute(null, async (ctx) => {
   const policies = await ApprovalService.listPolicies(ctx.orgId);
-  return { policies };
+  const { PREBUILT_POLICIES } = await import("@/server/services/policy-library");
+  return { policies, library: PREBUILT_POLICIES };
 });
 
 export const PUT = authedRoute<z.infer<typeof policyListSchema>>(
