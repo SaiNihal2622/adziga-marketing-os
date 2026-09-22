@@ -26,6 +26,15 @@ model Organization {
   logoUrl          String?
   isAdzigaInternal Boolean  @default(false)
 
+  // AutoApprove policies — JSON-encoded array of AutoApprovePolicy.
+  // Each policy says "if a change matches (entityType, action) and respects
+  // every field constraint and aggregate cap, it auto-applies instead of
+  // queuing for human review." Conservative default: empty array (nothing
+  // auto-applies). Admins edit policies at /app/admin/auto-approve.
+  //
+  // Shape: AutoApprovePolicy[] — see src/server/services/policy-types.ts
+  autoApprovePolicies String?
+
   // India billing / GST fields (optional — only required if org is GST-registered and invoiced)
   gstin            String?  // 15-char Goods & Services Tax Identification Number
   pan              String?  // 10-char PAN for TDS / invoicing
@@ -713,6 +722,10 @@ model Approval {
 
   approverId   String?
   status       String    @default("pending") // pending | approved | rejected | applied | cancelled
+  // When an approval was decided by the auto-apply path (org-level policy),
+  // this records the policy id that authorised it. Null for human-approved
+  // approvals. The audit trail still records who/what triggered the policy.
+  appliedByPolicyId String?
   notes        String?
   requestedAt  DateTime  @default(now())
   decidedAt    DateTime?

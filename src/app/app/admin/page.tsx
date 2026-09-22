@@ -60,6 +60,7 @@ export default async function AdminPage() {
             <Link href="/app/admin/approvals"><Button variant={pendingApprovals > 0 ? "primary" : "outline"}>
               Approvals {pendingApprovals > 0 && <span className="ml-1.5 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-white text-brand-700 text-[10px] font-semibold">{pendingApprovals}</span>}
             </Button></Link>
+            <Link href="/app/admin/auto-approve"><Button variant="outline">Auto-approve</Button></Link>
             <Link href="/app/admin/integrations"><Button variant="outline">Integrations</Button></Link>
             <Link href="/app/audit"><Button variant="outline">Audit</Button></Link>
           </div>

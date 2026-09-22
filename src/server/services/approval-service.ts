@@ -8,15 +8,22 @@
 //
 // Severity model:
 //   "critical"  — ALWAYS requires approval (budgets, tiers, credentials, deletions)
-//   "important" — requires approval unless delegated to the client
+//   "important" — requires approval unless a matching org AutoApprove policy
+//                 permits auto-apply within its field constraints + caps
 //   "minor"     — auto-applies, recorded in audit only
 //
 // Every approval records who asked (user | agent | client_user), the action,
 // the proposed payload, the severity, and a human title for the queue UI.
+// Auto-applies additionally record appliedByPolicyId so the audit trail
+// shows which policy authorised the change.
 
 import { prisma } from "@/lib/db";
 import { audit } from "@/lib/session";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/server/errors";
+import { PolicyEvaluator } from "./policy-evaluator";
+import { AutoApprovePolicy, PolicyEntityType, PolicyAction } from "./policy-types";
+
+export type { AutoApprovePolicy, PolicyEntityType, PolicyAction, FieldConstraint, PolicyCaps } from "./policy-types";
 
 export type ApprovalSeverity = "critical" | "important" | "minor";
 export type ApprovalAction = "update" | "delete" | "launch" | "pause" | "archive" | "create";
@@ -123,20 +130,128 @@ export const ApprovalService = {
   /**
    * Stage a change request. If the severity is "minor", it is auto-applied
    * immediately and recorded in the audit log instead of being queued.
+   *
+   * For "important" severity, the request runs through the org's
+   * AutoApprove policies. If a matching policy says auto-apply AND every
+   * field constraint + cap passes, the change applies immediately with
+   * appliedByPolicyId recorded. Otherwise it queues for human review.
+   *
+   * "critical" severity NEVER auto-applies — always queues.
    */
   async request(input: RequestApprovalInput) {
     const severity = input.severity || this.classify(input.entityType, input.payload ?? null);
+    const payload = input.payload ?? {};
 
-    // Auto-apply minor changes immediately.
+    // 1. Minor severity: always auto-applies, no policy needed.
     if (severity === "minor") {
-      const applied = await this.applyPayload(input.entityType, input.entityId, input.payload ?? {}, input.action);
+      const applied = await this.applyPayload(input.entityType, input.entityId, payload, input.action);
+      const approval = await prisma.approval.create({
+        data: {
+          orgId: input.orgId,
+          entityType: input.entityType,
+          entityId: input.entityId,
+          action: input.action,
+          title: input.title,
+          payload: JSON.stringify(payload),
+          requestedById: input.requestedById,
+          requestedByKind: input.requestedByKind,
+          severity,
+          reason: input.reason ?? null,
+          status: "applied",
+          approverId: input.requestedById,
+          decidedAt: new Date(),
+          appliedByPolicyId: "MINOR_AUTO"
+        }
+      });
       await audit(input.orgId, input.requestedById, `auto_apply.${input.entityType.toLowerCase()}.${input.action}`, {
         entityType: input.entityType,
         entityId: input.entityId,
-        after: input.payload ?? {}
+        after: payload
       });
-      return { autoApplied: true as const, result: applied, severity };
+      return { autoApplied: true as const, result: applied, severity, approval };
     }
+
+    // 2. Critical severity: NEVER auto-applies.
+    if (severity === "critical") {
+      const approval = await prisma.approval.create({
+        data: {
+          orgId: input.orgId,
+          entityType: input.entityType,
+          entityId: input.entityId,
+          action: input.action,
+          title: input.title,
+          payload: JSON.stringify(payload),
+          requestedById: input.requestedById,
+          requestedByKind: input.requestedByKind,
+          severity,
+          reason: input.reason ?? null,
+          status: "pending"
+        }
+      });
+      return { autoApplied: false as const, approval, severity, policy: null };
+    }
+
+    // 3. Important severity: run policy evaluator.
+    const decision = await PolicyEvaluator.evaluate({
+      orgId: input.orgId,
+      entityType: input.entityType as PolicyEntityType,
+      entityId: input.entityId,
+      action: input.action as PolicyAction,
+      payload,
+      confirmationTimestamp: (input as any).confirmationTimestamp ?? null
+    });
+
+    if (decision.kind === "auto_apply") {
+      const applied = await this.applyPayload(input.entityType, input.entityId, payload, input.action);
+      const approval = await prisma.approval.create({
+        data: {
+          orgId: input.orgId,
+          entityType: input.entityType,
+          entityId: input.entityId,
+          action: input.action,
+          title: input.title,
+          payload: JSON.stringify(payload),
+          requestedById: input.requestedById,
+          requestedByKind: input.requestedByKind,
+          severity,
+          reason: input.reason ?? null,
+          status: "applied",
+          approverId: input.requestedById,
+          decidedAt: new Date(),
+          appliedByPolicyId: decision.policy.id
+        }
+      });
+      await audit(
+        input.orgId,
+        input.requestedById,
+        `auto_apply_policy.${input.entityType.toLowerCase()}.${input.action}`,
+        {
+          entityType: input.entityType,
+          entityId: input.entityId,
+          after: {
+            payload,
+            policyId: decision.policy.id,
+            policyName: decision.policy.name,
+            reason: decision.reason
+          }
+        }
+      );
+      return {
+        autoApplied: true as const,
+        result: applied,
+        severity,
+        approval,
+        policy: decision.policy,
+        reason: decision.reason
+      };
+    }
+
+    // 4. Otherwise: queue for human review. For dry-run, surface in the
+    //    approval row's reason so admins see "would auto-apply under X".
+    const reasonWithPolicy =
+      decision.kind === "dry_run"
+        ? `[Would auto-apply under "${decision.policy.name}" if dry-run mode were off] ${input.reason ?? ""}`.trim()
+        : input.reason ?? null;
 
     const approval = await prisma.approval.create({
       data: {
@@ -145,16 +260,21 @@ export const ApprovalService = {
         entityId: input.entityId,
         action: input.action,
         title: input.title,
-        payload: input.payload ? JSON.stringify(input.payload) : null,
+        payload: JSON.stringify(payload),
         requestedById: input.requestedById,
         requestedByKind: input.requestedByKind,
         severity,
-        reason: input.reason ?? null,
+        reason: reasonWithPolicy,
         status: "pending"
       }
     });
-
-    return { autoApplied: false as const, approval, severity };
+    return {
+      autoApplied: false as const,
+      approval,
+      severity,
+      policy: decision.kind === "dry_run" ? decision.policy : null,
+      reason: decision.reason
+    };
   },
 
   async list(filter: ApprovalListFilter): Promise<{ items: ApprovalRow[]; counts: { pending: number; approved: number; rejected: number; applied: number; cancelled: number } }> {
@@ -272,6 +392,109 @@ export const ApprovalService = {
       after: { approvalId: a.id, applied: applied ?? null, notes: input.notes ?? null }
     });
     return updated;
+  },
+
+  // ─────────────────────────────────────────────────────────────────────
+  // AutoApprove policy management (org-level)
+  // ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * Read all AutoApprove policies for an org. Returns [] when none set.
+   */
+  async listPolicies(orgId: string): Promise<AutoApprovePolicy[]> {
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { autoApprovePolicies: true }
+    });
+    if (!org?.autoApprovePolicies) return [];
+    try {
+      const parsed = JSON.parse(org.autoApprovePolicies);
+      return Array.isArray(parsed) ? (parsed as AutoApprovePolicy[]) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Replace the org's policy list atomically.
+   */
+  async setPolicies(orgId: string, policies: AutoApprovePolicy[], updatedById: string) {
+    // Basic validation: enforce that no policy targets "critical" fields.
+    const criticalFields = new Set([
+      "monthlyBudget",
+      "tier",
+      "credentials",
+      "accessToken",
+      "secret",
+      "password",
+      "role",
+      "permissions"
+    ]);
+    for (const p of policies) {
+      for (const fc of p.fieldConstraints) {
+        if (criticalFields.has(fc.field)) {
+          throw new ValidationError(
+            `Policy "${p.name}" targets critical field "${fc.field}". Critical fields cannot be auto-applied — they always require human review.`
+          );
+        }
+      }
+    }
+
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { autoApprovePolicies: JSON.stringify(policies) }
+    });
+    await audit(orgId, updatedById, "policy.set", {
+      after: { count: policies.length }
+    });
+    return policies;
+  },
+
+  /**
+   * Add or update one policy by id. Generates a fresh id if new.
+   */
+  async upsertPolicy(orgId: string, policy: AutoApprovePolicy, updatedById: string) {
+    const existing = await this.listPolicies(orgId);
+    const idx = existing.findIndex((p) => p.id === policy.id);
+    const now = new Date().toISOString();
+    const next: AutoApprovePolicy = {
+      ...policy,
+      createdAt: idx >= 0 ? existing[idx].createdAt : now,
+      updatedAt: now,
+      createdById: idx >= 0 ? existing[idx].createdById : updatedById
+    };
+    if (idx >= 0) existing[idx] = next;
+    else existing.push(next);
+    return this.setPolicies(orgId, existing, updatedById).then(() => next);
+  },
+
+  /**
+   * Remove a policy by id.
+   */
+  async deletePolicy(orgId: string, policyId: string, deletedById: string) {
+    const existing = await this.listPolicies(orgId);
+    const next = existing.filter((p) => p.id !== policyId);
+    if (next.length === existing.length) {
+      throw new NotFoundError("AutoApprovePolicy", policyId);
+    }
+    await this.setPolicies(orgId, next, deletedById);
+    return { deleted: policyId, remaining: next.length };
+  },
+
+  /**
+   * List recent auto-applies (both minor and policy-driven) for the audit feed.
+   */
+  async recentAutoApplies(orgId: string, limit = 50) {
+    return prisma.approval.findMany({
+      where: {
+        orgId,
+        status: "applied",
+        appliedByPolicyId: { not: null }
+      },
+      orderBy: { decidedAt: "desc" },
+      take: limit,
+      include: { approver: { select: { id: true, name: true, email: true } } }
+    });
   },
 
   async cancel(orgId: string, approvalId: string, by: string) {
