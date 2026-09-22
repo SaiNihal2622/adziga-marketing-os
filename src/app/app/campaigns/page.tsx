@@ -1,131 +1,243 @@
+// Adziga — /app/campaigns
+// Multi-channel execution with KPI summary, status filter pills, and a polished
+// table that surfaces health + lifecycle counts at the bottom.
+
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/session";
-import { PageHeader } from "../_components/page-header";
-import { StatusPill } from "../_components/widgets";
-import { fmtINR, fmtNum, fmtPct, fmtDate, ctr, roas } from "@/lib/format";
+import { PageHeader } from "@/app/app/_components/page-header";
+import { Badge, Button, Card, EmptyState, Kpi, SectionHeader } from "@/app/app/_components/ui";
+import { fmtINR, fmtNum, fmtRelative } from "@/lib/format";
 import { PLATFORM_LABELS } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
-export default async function CampaignsPage({ searchParams }: { searchParams: { clientId?: string; status?: string; platform?: string } }) {
+export default async function CampaignsPage({
+  searchParams
+}: {
+  searchParams: { clientId?: string; status?: string; platform?: string };
+}) {
   const session = await requireSession();
   const where: any = { orgId: session.orgId };
   if (searchParams.clientId) where.clientId = searchParams.clientId;
   if (searchParams.status) where.status = searchParams.status;
   if (searchParams.platform) where.platform = searchParams.platform;
 
-  const campaigns = await prisma.campaign.findMany({
-    where,
-    include: { client: true, adSets: true, ads: true, _count: { select: { adSets: true, ads: true, creatives: true, leadEntries: true } } },
-    orderBy: { createdAt: "desc" }
-  });
+  const [campaigns, clients] = await Promise.all([
+    prisma.campaign.findMany({
+      where,
+      include: {
+        client: { select: { id: true, businessName: true } },
+        _count: { select: { adSets: true, ads: true, creatives: true, leadEntries: true, briefs: true } }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200
+    }),
+    prisma.client.findMany({ where: { orgId: session.orgId }, orderBy: { businessName: "asc" } })
+  ]);
 
-  const clients = await prisma.client.findMany({ where: { orgId: session.orgId }, orderBy: { businessName: "asc" } });
+  // KPIs across filtered scope
+  const totalSpend = campaigns.reduce((s, c) => s + c.spent, 0);
+  const totalRevenue = campaigns.reduce((s, c) => s + c.revenue, 0);
+  const totalLeads = campaigns.reduce((s, c) => s + Number(c.leads), 0);
+  const activeCampaigns = campaigns.filter((c) => c.status === "ACTIVE").length;
+  const cpl_ = totalLeads > 0 ? totalSpend / totalLeads : 0;
+  const roas_ = totalSpend > 0 ? totalRevenue / totalSpend : 0;
+
+  const STATUS_OPTIONS: Array<{ key?: string; label: string }> = [
+    { label: "All" },
+    { key: "DRAFT", label: "Draft" },
+    { key: "INTERNAL_REVIEW", label: "Internal review" },
+    { key: "CLIENT_APPROVAL", label: "Client approval" },
+    { key: "READY", label: "Ready" },
+    { key: "ACTIVE", label: "Active" },
+    { key: "PAUSED", label: "Paused" },
+    { key: "COMPLETED", label: "Completed" },
+    { key: "ARCHIVED", label: "Archived" }
+  ];
+
+  function statusHref(key?: string) {
+    const params = new URLSearchParams({ ...searchParams } as any);
+    if (key) params.set("status", key);
+    else params.delete("status");
+    return `/app/campaigns${params.toString() ? "?" + params.toString() : ""}`;
+  }
 
   return (
-    <div className="space-y-6">
+    <div>
       <PageHeader
+        eyebrow="Execution"
         title="Campaigns"
-        subtitle="Multi-channel campaign execution with workflow states: Draft  Internal Review  Client Approval  Ready  Active  Paused  Completed."
+        subtitle="Multi-channel execution. Lifecycle: Draft → Internal review → Client approval → Ready → Active → Paused → Completed."
+        breadcrumbs={[{ label: "Campaigns" }]}
         right={
-          <Link href="/app/campaigns/new" className="btn btn-primary btn-sm">+ New campaign</Link>
+          <Link href="/app/campaigns/new">
+            <Button>+ New campaign</Button>
+          </Link>
         }
       />
 
-      {/* Filters */}
-      <div className="card p-4 flex flex-wrap items-center gap-3 text-sm">
-        <FilterChip active={!searchParams.clientId} href="/app/campaigns">All clients</FilterChip>
-        {clients.map((c) => (
-          <FilterChip key={c.id} active={searchParams.clientId === c.id} href={`/app/campaigns?clientId=${c.id}`}>
-            {c.businessName}
-          </FilterChip>
-        ))}
-        <div className="w-px h-5 bg-ink-200 mx-2" />
-        {["ACTIVE", "PAUSED", "DRAFT", "READY", "COMPLETED", "ARCHIVED"].map((s) => (
-          <FilterChip key={s} active={searchParams.status === s} href={`/app/campaigns?${new URLSearchParams({ ...searchParams, status: s })}`}>
-            {s}
-          </FilterChip>
-        ))}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+        <Kpi label="Total campaigns" value={campaigns.length.toString()} hint={`${activeCampaigns} active`} />
+        <Kpi label="Spend" value={fmtINR(totalSpend)} tone="brand" />
+        <Kpi label="Leads" value={fmtNum(totalLeads)} hint={`${fmtINR(cpl_)} CPL`} />
+        <Kpi label="Revenue" value={fmtINR(totalRevenue)} />
+        <Kpi label="ROAS" value={`${roas_.toFixed(2)}×`} tone={roas_ >= 2 ? "success" : "neutral"} />
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Client</th>
-              <th>Platform</th>
-              <th>Status</th>
-              <th>Health</th>
-              <th className="text-right">Budget</th>
-              <th className="text-right">Spend</th>
-              <th className="text-right">Impr.</th>
-              <th className="text-right">Leads</th>
-              <th className="text-right">CPL</th>
-              <th className="text-right">ROAS</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {campaigns.map((c) => {
-              const cpl = c.spent / Number(c.leads || 1);
-              const ro = c.revenue / c.spent;
-              return (
-                <tr key={c.id}>
-                  <td>
-                    <Link href={`/app/campaigns/${c.id}`} className="font-medium text-brand-600 hover:underline">{c.name}</Link>
-                    <div className="text-xs text-ink-500">{c.objective}</div>
-                  </td>
-                  <td><Link href={`/app/clients/${c.clientId}`} className="text-ink-700 hover:underline">{c.client.businessName}</Link></td>
-                  <td><span className="badge badge-neutral">{PLATFORM_LABELS[c.platform as keyof typeof PLATFORM_LABELS] ?? c.platform}</span></td>
-                  <td><StatusPill status={c.status} /></td>
-                  <td>
-                    {c.health === "Healthy" && <span className="badge badge-success">Healthy</span>}
-                    {c.health === "At Risk" && <span className="badge badge-warning">At Risk</span>}
-                    {c.health === "Critical" && <span className="badge badge-danger">Critical</span>}
-                  </td>
-                  <td className="text-right font-mono text-xs">{fmtINR(c.budget ?? 0)}</td>
-                  <td className="text-right font-mono text-xs">{fmtINR(c.spent)}</td>
-                  <td className="text-right font-mono text-xs">{fmtNum(c.impressions)}</td>
-                  <td className="text-right font-mono text-xs">{fmtNum(c.leads)}</td>
-                  <td className="text-right font-mono text-xs">{fmtINR(cpl)}</td>
-                  <td className="text-right font-mono text-xs">{c.spent > 0 ? `${ro.toFixed(2)}x` : "-"}</td>
-                  <td><Link href={`/app/campaigns/${c.id}`} className="text-brand-600 hover:underline text-xs">View </Link></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Workflow visual */}
-      <div className="card p-5">
-        <h3 className="text-sm font-semibold text-ink-700 mb-4">Campaign lifecycle</h3>
-        <div className="grid grid-cols-2 md:grid-cols-8 gap-2 text-xs">
-          {["DRAFT", "INTERNAL_REVIEW", "CLIENT_APPROVAL", "READY", "ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED"].map((s, i) => {
-            const count = campaigns.filter((c) => c.status === s).length;
+      <Card padding="sm" className="mb-5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {STATUS_OPTIONS.map((s) => {
+            const isActive = (searchParams.status ?? "") === (s.key ?? "");
             return (
-              <div key={s} className="card p-3 border-ink-200 text-center">
-                <div className="text-[10px] uppercase tracking-wide text-ink-500">Step {i + 1}</div>
-                <div className="font-medium mt-1">{s.replace(/_/g, " ")}</div>
-                <div className="text-2xl font-bold mt-2 text-brand-600">{count}</div>
-              </div>
+              <Link
+                key={s.label}
+                href={statusHref(s.key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  isActive
+                    ? "bg-ink-900 text-white"
+                    : "bg-transparent text-ink-700 hover:bg-ink-100"
+                }`}
+              >
+                {s.label}
+              </Link>
             );
           })}
         </div>
+        {clients.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-ink-100 flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] uppercase tracking-wide text-ink-500 font-semibold mr-2">Client</span>
+            <Link
+              href={statusHref(undefined).replace(/&?clientId=[^&]*/, "")}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                !searchParams.clientId ? "bg-brand-500 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-200"
+              }`}
+            >
+              All
+            </Link>
+            {clients.slice(0, 12).map((c) => (
+              <Link
+                key={c.id}
+                href={`/app/campaigns?clientId=${c.id}`}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                  searchParams.clientId === c.id ? "bg-brand-500 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-200"
+                }`}
+              >
+                {c.businessName}
+              </Link>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {campaigns.length === 0 ? (
+        <Card>
+          <EmptyState
+            title="No campaigns in this view"
+            description={searchParams.status || searchParams.clientId ? "Try clearing the filters above." : "Create your first campaign from scratch or use the Strategy Agent."}
+            action={{ label: "+ New campaign", href: "/app/campaigns/new" }}
+          />
+        </Card>
+      ) : (
+        <Card padding="none">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-[10.5px] uppercase tracking-wide text-ink-500 font-semibold bg-ink-50/40">
+                <th className="px-4 py-3">Campaign</th>
+                <th className="px-4 py-3">Client</th>
+                <th className="px-4 py-3">Platform</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Health</th>
+                <th className="px-4 py-3 text-right">Budget</th>
+                <th className="px-4 py-3 text-right">Spend</th>
+                <th className="px-4 py-3 text-right">Leads</th>
+                <th className="px-4 py-3 text-right">ROAS</th>
+                <th className="px-4 py-3 text-right"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {campaigns.map((c) => {
+                const cpl = Number(c.leads) > 0 ? c.spent / Number(c.leads) : 0;
+                const ro = c.spent > 0 ? c.revenue / c.spent : 0;
+                return (
+                  <tr key={c.id} className="border-t border-ink-100 hover:bg-ink-50/40 transition-colors">
+                    <td className="px-4 py-3">
+                      <Link href={`/app/campaigns/${c.id}`} className="font-medium text-ink-900 hover:text-brand-600 transition-colors">
+                        {c.name}
+                      </Link>
+                      <div className="text-xs text-ink-500 mt-0.5">{c.objective}</div>
+                    </td>
+                    <td className="px-4 py-3 text-ink-700">
+                      <Link href={`/app/clients/${c.clientId}`} className="hover:text-brand-600 transition-colors">
+                        {c.client.businessName}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="neutral">{PLATFORM_LABELS[c.platform as keyof typeof PLATFORM_LABELS] ?? c.platform}</Badge>
+                    </td>
+                    <td className="px-4 py-3"><CampaignStatusBadge status={c.status} /></td>
+                    <td className="px-4 py-3"><HealthBadge health={c.health} /></td>
+                    <td className="px-4 py-3 text-right tabular-nums">{fmtINR(c.budget ?? 0)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{fmtINR(c.spent)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{fmtNum(c.leads)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      <span className={ro >= 2 ? "text-emerald-700 font-medium" : ro >= 1 ? "text-ink-900" : "text-rose-700"}>
+                        {c.spent > 0 ? `${ro.toFixed(2)}×` : "—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link href={`/app/campaigns/${c.id}`} className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+                        Open →
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {/* Lifecycle snapshot */}
+      <SectionHeader title="Lifecycle snapshot" description="Where campaigns sit in the workflow right now." />
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
+        {["DRAFT", "INTERNAL_REVIEW", "CLIENT_APPROVAL", "READY", "ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED"].map((s, i) => {
+          const count = campaigns.filter((c) => c.status === s).length;
+          return (
+            <div key={s} className="rounded-lg border border-ink-200/70 bg-white p-3 text-center">
+              <div className="text-[9.5px] uppercase tracking-[0.12em] text-ink-400 font-semibold">Step {i + 1}</div>
+              <div className="text-[12px] font-medium text-ink-700 mt-0.5">{s.replace(/_/g, " ")}</div>
+              <div className="text-xl font-semibold text-ink-900 mt-1.5 tabular-nums tracking-tight">{count}</div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function FilterChip({ children, href, active }: { children: React.ReactNode; href: string; active?: boolean }) {
-  return (
-    <Link
-      href={href}
-      className={`px-3 py-1.5 rounded-full text-xs ${active ? "bg-brand-600 text-white" : "bg-ink-100 text-ink-700 hover:bg-ink-200"}`}
-    >
-      {children}
-    </Link>
-  );
+function CampaignStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { variant: any; label: string }> = {
+    DRAFT: { variant: "neutral", label: "Draft" },
+    INTERNAL_REVIEW: { variant: "info", label: "Internal review" },
+    CLIENT_APPROVAL: { variant: "info", label: "Client approval" },
+    READY: { variant: "info", label: "Ready" },
+    ACTIVE: { variant: "success", label: "Active" },
+    PAUSED: { variant: "warning", label: "Paused" },
+    COMPLETED: { variant: "brand", label: "Completed" },
+    ARCHIVED: { variant: "neutral", label: "Archived" }
+  };
+  const m = map[status] ?? { variant: "neutral", label: status };
+  return <Badge variant={m.variant} dot>{m.label}</Badge>;
+}
+
+function HealthBadge({ health }: { health: string | null }) {
+  if (!health) return <span className="text-xs text-ink-400">—</span>;
+  const map: Record<string, { variant: any }> = {
+    Healthy: { variant: "success" },
+    "At Risk": { variant: "warning" },
+    Critical: { variant: "danger" }
+  };
+  const m = map[health] ?? { variant: "neutral" };
+  return <Badge variant={m.variant} dot>{health}</Badge>;
 }

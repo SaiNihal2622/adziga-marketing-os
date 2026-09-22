@@ -3,24 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f6f7f9;
+  --bg: #f7f8fa;
   --panel: #ffffff;
-  --border: #e5e8ee;
-  --text: #0d1015;
-  --muted: #525d72;
-  --accent: #243ff0;
+  --border: #e6e9f0;
+  --text: #0e0f13;
+  --muted: #565a68;
+  --accent: #f36d21;
+  --accent-soft: #fff4ec;
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
 }
 
 .dark {
-  --bg: #0b0e13;
-  --panel: #14181f;
-  --border: #232936;
+  --bg: #0e0f13;
+  --panel: #16181f;
+  --border: #262932;
   --text: #e6e8ec;
-  --muted: #8b94a7;
-  --accent: #5a85ff;
+  --muted: #8791a7;
+  --accent: #fb7d3d;
+  --accent-soft: #2a1c10;
   --success: #34d399;
   --warning: #fbbf24;
   --danger: #f87171;
@@ -194,7 +196,14 @@ body {
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #243ff0 0%, #d946ef 100%);
+  background: linear-gradient(135deg, #f36d21 0%, #bd460b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.gradient-text-warm {
+  background: linear-gradient(135deg, #f99707 0%, #f36d21 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -210,7 +219,7 @@ body {
   position: absolute;
   inset: -1px;
   border-radius: inherit;
-  background: linear-gradient(135deg, #243ff0, #d946ef);
+  background: linear-gradient(135deg, #f36d21, #f99707);
   z-index: -1;
 }
 
@@ -306,10 +315,10 @@ html, body {
 /* v0-style focus ring — used on interactive elements */
 .focus-ring:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px rgba(36, 63, 240, 0.18);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px rgba(243, 109, 33, 0.18);
 }
 .dark .focus-ring:focus-visible {
-  box-shadow: 0 0 0 2px #5a85ff, 0 0 0 4px rgba(90, 133, 255, 0.22);
+  box-shadow: 0 0 0 2px #fb7d3d, 0 0 0 4px rgba(251, 125, 61, 0.22);
 }
 
 /* Refined scrollbar matching v0 */
@@ -331,7 +340,7 @@ html, body {
 /* Avatar circle helper */
 .avatar {
   @apply relative shrink-0 select-none rounded-full size-9 flex items-center justify-center overflow-hidden;
-  background: linear-gradient(135deg, #243ff0, #d946ef);
+  background: linear-gradient(135deg, #f36d21, #bd460b);
   color: white;
   font-weight: 600;
   font-size: 13px;
@@ -361,8 +370,16 @@ html, body {
 
 /* Glow effect for hero CTAs */
 .glow-brand {
-  box-shadow: 0 0 0 1px rgba(36, 63, 240, 0.16), 0 8px 32px rgba(36, 63, 240, 0.20);
+  box-shadow: 0 0 0 1px rgba(243, 109, 33, 0.16), 0 8px 32px rgba(243, 109, 33, 0.22);
 }
 .glow-accent {
-  box-shadow: 0 0 0 1px rgba(217, 70, 239, 0.16), 0 8px 32px rgba(217, 70, 239, 0.20);
+  box-shadow: 0 0 0 1px rgba(249, 151, 7, 0.16), 0 8px 32px rgba(249, 151, 7, 0.22);
 }
+.glow-charcoal {
+  box-shadow: 0 0 0 1px rgba(14, 15, 19, 0.10), 0 8px 32px rgba(14, 15, 19, 0.18);
+}
+
+/* Editorial display headlines — used on landing pages, admin hero, marketing surfaces. */
+.font-display { font-family: 'Geist', 'Inter', ui-sans-serif, system-ui, sans-serif; }
+.tracking-tightest { letter-spacing: -0.025em; }
+.tracking-tighter { letter-spacing: -0.015em; }

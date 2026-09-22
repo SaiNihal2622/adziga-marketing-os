@@ -472,6 +472,7 @@ export function navRoutesForRole(role: Role): { client: string[]; operator: stri
         "Automations",
         "AI Assistant",
         "Admin",
+        "Approvals",
         "Audit",
         "Integrations"
       ],

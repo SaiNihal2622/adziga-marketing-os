@@ -93,3 +93,27 @@ export function roleLabel(role: Role | string): string {
   };
   return map[role] ?? role;
 }
+export function fmtRelative(d: Date | string | null | undefined): string {
+  if (!d) return "-";
+  const dt = typeof d === "string" ? new Date(d) : d;
+  const diffMs = Date.now() - dt.getTime();
+  const sec = Math.round(diffMs / 1000);
+  const min = Math.round(sec / 60);
+  const hr = Math.round(min / 60);
+  const day = Math.round(hr / 24);
+  if (sec < 5) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  if (min < 60) return `${min}m ago`;
+  if (hr < 24) return `${hr}h ago`;
+  if (day < 30) return `${day}d ago`;
+  return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+export function creativePreferenceLabel(v: string | null | undefined): string {
+  switch (v) {
+    case "AI_DESIGNER": return "AI + Designer";
+    case "MANUAL_ONLY": return "Manual only";
+    case "AI_INHOUSE": return "AI in-house";
+    default: return "AI in-house";
+  }
+}

@@ -346,6 +346,8 @@ export type AgentRunOptions = {
   trigger?: "user_message" | "cron" | "event" | "action_followup" | "manual";
   /** Who triggered the run */
   invokedBy?: string;
+  /** Explicit user id to attribute the run to (used by approval-routed tools). */
+  userId?: string;
   /** act-as orgId if Adziga team is operating on a client's org */
   actAsOrgId?: string;
   /** Streaming callback — receives AgentStreamEvent as the run progresses */
@@ -441,6 +443,7 @@ export async function runAgentOnce(opts: AgentRunOptions): Promise<AgentRunResul
       orgId: opts.actAsOrgId ?? agent.orgId,
       agentId: agent.id,
       invokedBy: opts.invokedBy ?? "system",
+      userId: opts.userId ?? opts.invokedBy ?? undefined,
       clientId: agent.clientId ?? undefined,
       actAsOrgId: opts.actAsOrgId,
       can: (perm: string) => allowedPerms.has(perm) || allowedPerms.has("*")

@@ -68,6 +68,7 @@ function navItemsFor(names: string[]): NavItem[] {
     Automations: { href: "/app/automations", icon: ICONS.automations },
     "AI Assistant": { href: "/app/ai",       icon: ICONS.ai },
     Admin:       { href: "/app/admin",       icon: ICONS.admin },
+    Approvals:   { href: "/app/admin/approvals", icon: ICONS.audit },
     Audit:       { href: "/app/audit",       icon: ICONS.audit },
     Integrations:{ href: "/app/admin/integrations", icon: ICONS.integrations },
     Billing:     { href: "/app/admin/billing", icon: ICONS.billing }

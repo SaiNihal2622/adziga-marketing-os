@@ -17,6 +17,8 @@ export type ToolContext = {
   can: (permission: string) => boolean;
   /** Who invoked this run (the user that triggered the chat, or "system" for cron) */
   invokedBy: string;
+  /** The userId that started the run — used by tools that need to attribute changes (approvals etc.) */
+  userId?: string;
   /** Optional: act-as-orgId if Adziga team is operating on a client's org */
   actAsOrgId?: string;
   /** Optional client scope */
@@ -96,6 +98,96 @@ export const clientTools: ToolSpec[] = [
           type: "client.create",
           summary: `Onboarded client "${client.businessName}"`,
           payload: { clientId: client.id, businessName: client.businessName }
+        }
+      };
+    }
+  },
+  {
+    name: "client.get",
+    description: "Read a single client record, including creativePreference (AI_INHOUSE / AI_DESIGNER / MANUAL_ONLY), tier, status, and monthly budget. Use this before producing creative work for a client to route correctly.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string", description: "The Client entity id" }
+      },
+      required: ["clientId"]
+    },
+    requires: "client.read",
+    handler: async (input, ctx) => {
+      if (!ctx.can("client.read")) return { ok: false, error: "permission denied: client.read" };
+      const c = await ctx.prisma.client.findFirst({
+        where: { id: String(input.clientId), orgId: ctx.orgId },
+        include: { _count: { select: { campaigns: true, briefs: true, leads: true, customers: true } } }
+      });
+      if (!c) return { ok: false, error: `client ${input.clientId} not found` };
+      return {
+        ok: true,
+        output: {
+          clientId: c.id,
+          businessName: c.businessName,
+          industry: c.industry,
+          status: c.status,
+          tier: c.tier,
+          creativePreference: c.creativePreference,
+          monthlyBudget: c.monthlyBudget,
+          campaignCount: c._count.campaigns,
+          briefCount: c._count.briefs,
+          leadCount: c._count.leads,
+          customerCount: c._count.customers
+        }
+      };
+    }
+  },
+  {
+    name: "client.update",
+    description:
+      "Propose a change to a client record. Critical fields (monthlyBudget, tier, status, creativePreference) are STAGED — they become an Approval record that an Adziga admin reviews in /app/admin/approvals. Minor fields (city, notes, contactPhone, etc.) apply immediately. The tool returns either { mode: 'applied', client } or { mode: 'pending', approval } — always tell the user which.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        clientId: { type: "string" },
+        patch: {
+          type: "object",
+          description: "Object of fields to update. Keys: monthlyBudget, tier, status, creativePreference, notes, contactPhone, contactEmail, contactName, industry, websiteUrl, city, country, businessModel.",
+          properties: {
+            businessName: { type: "string" },
+            contactName: { type: "string" },
+            contactEmail: { type: "string" },
+            contactPhone: { type: "string" },
+            industry: { type: "string" },
+            websiteUrl: { type: "string" },
+            city: { type: "string" },
+            country: { type: "string" },
+            businessModel: { type: "string" },
+            monthlyBudget: { type: "number" },
+            status: { type: "string", enum: ["ONBOARDING", "ACTIVE", "PAUSED", "CHURNED"] },
+            tier: { type: "string", enum: ["FREE", "PRO", "ZIGA_PLUS"] },
+            creativePreference: { type: "string", enum: ["AI_INHOUSE", "AI_DESIGNER", "MANUAL_ONLY"] },
+            notes: { type: "string" }
+          }
+        },
+        reason: { type: "string", description: "Short justification shown to the admin in the approval queue." }
+      },
+      required: ["clientId", "patch"]
+    },
+    requires: "client.update",
+    handler: async (input, ctx) => {
+      if (!ctx.can("client.update")) return { ok: false, error: "permission denied: client.update" };
+      const { ClientService } = await import("@/server/services/client-service");
+      const result = await ClientService.proposeUpdate(ctx.orgId, ctx.userId ?? ctx.agentId, String(input.clientId), input.patch as any, {
+        requestedByKind: "agent",
+        reason: input.reason ? String(input.reason) : undefined
+      });
+      return {
+        ok: true,
+        output: result,
+        recordAction: {
+          type: result.mode === "applied" ? "client.update" : "approval.request",
+          summary:
+            result.mode === "applied"
+              ? `Updated client ${input.clientId}`
+              : `Staged client update for admin approval`,
+          payload: { clientId: input.clientId, mode: result.mode, severity: result.severity, approvalId: result.mode === "pending" ? result.approval.id : undefined }
         }
       };
     }
