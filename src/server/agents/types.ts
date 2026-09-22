@@ -731,6 +731,164 @@ export const briefTools: ToolSpec[] = [
 // ──────────────────────────────────────────────────────────────────────────
 // Lead management tools
 // ──────────────────────────────────────────────────────────────────────────
+// Experiment tools (A/B testing — Sprint 6)
+// ──────────────────────────────────────────────────────────────────────────
+
+export const experimentTools: ToolSpec[] = [
+  {
+    name: "experiment.list",
+    description: "List experiments for the org with status, variant count, and assignments.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["PLANNED", "RUNNING", "COMPLETED", "CANCELLED"] }
+      }
+    },
+    requires: "experiment.read",
+    handler: async (input, ctx) => {
+      if (!ctx.can("experiment.read")) return { ok: false, error: "permission denied: experiment.read" };
+      const where: any = { orgId: ctx.orgId };
+      if (input.status) where.status = String(input.status);
+      const experiments = await ctx.prisma.experiment.findMany({
+        where,
+        include: {
+          client: true,
+          campaign: true,
+          variants: true,
+          _count: { select: { assignments: true } }
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50
+      });
+      return {
+        ok: true,
+        output: experiments.map((e) => ({
+          id: e.id,
+          title: e.title,
+          status: e.status,
+          kpi: e.kpi,
+          metric: e.metric,
+          winnerVariantId: e.winnerVariantId,
+          variantCount: e.variants.length,
+          assignments: e._count.assignments
+        }))
+      };
+    }
+  },
+  {
+    name: "experiment.analyze",
+    description:
+      "Run a Bayesian beta-binomial analysis on a running or completed experiment. Returns per-variant posterior mean, 95% credible interval, P(best), and a recommended winner if one exists (P≥0.95 AND sample size met).",
+    inputSchema: {
+      type: "object",
+      properties: { experimentId: { type: "string" } },
+      required: ["experimentId"]
+    },
+    requires: "experiment.read",
+    handler: async (input, ctx) => {
+      if (!ctx.can("experiment.read")) return { ok: false, error: "permission denied: experiment.read" };
+      const { ExperimentService } = await import("@/server/services/experiment-service");
+      const e = await ctx.prisma.experiment.findFirst({
+        where: { id: String(input.experimentId), orgId: ctx.orgId },
+        select: { id: true }
+      });
+      if (!e) return { ok: false, error: "experiment not found" };
+      const analysis = await ExperimentService.analyze(ctx.prisma, e.id);
+      return {
+        ok: true,
+        output: {
+          experimentId: analysis.experimentId,
+          status: analysis.status,
+          canDeclareWinner: analysis.canDeclareWinner,
+          reason: analysis.reason,
+          winnerVariantId: analysis.winner?.variantId ?? null,
+          variants: analysis.variants.map((v) => ({
+            label: v.label,
+            kind: v.kind,
+            assigned: v.assignedCount,
+            converted: v.convertedCount,
+            rate: v.posteriorMean,
+            ci95: v.credibleInterval,
+            pBest: v.probOfBeingBest,
+            liftVsControl: v.liftVsControl
+          }))
+        }
+      };
+    }
+  },
+  {
+    name: "experiment.start",
+    description: "Transition a PLANNED experiment to RUNNING. Requires ≥ 2 variants.",
+    inputSchema: {
+      type: "object",
+      properties: { experimentId: { type: "string" } },
+      required: ["experimentId"]
+    },
+    requires: "experiment.update",
+    handler: async (input, ctx) => {
+      if (!ctx.can("experiment.update")) return { ok: false, error: "permission denied: experiment.update" };
+      const e = await ctx.prisma.experiment.findFirst({
+        where: { id: String(input.experimentId), orgId: ctx.orgId }
+      });
+      if (!e) return { ok: false, error: "experiment not found" };
+      if (e.status !== "PLANNED") return { ok: false, error: `cannot start: experiment is ${e.status}` };
+      const v = await ctx.prisma.experimentVariant.count({ where: { experimentId: e.id } });
+      if (v < 2) return { ok: false, error: "need at least 2 variants before starting" };
+      const updated = await ctx.prisma.experiment.update({
+        where: { id: e.id },
+        data: { status: "RUNNING", startedAt: new Date() }
+      });
+      return {
+        ok: true,
+        output: { experimentId: updated.id, status: updated.status },
+        recordAction: {
+          type: "experiment.start",
+          summary: `Started experiment "${updated.title}"`,
+          payload: { experimentId: updated.id }
+        }
+      };
+    }
+  },
+  {
+    name: "experiment.complete",
+    description:
+      "Mark a RUNNING experiment COMPLETED. Runs the Bayesian analysis; if a winner exists, freezes it. Optional human-readable conclusion.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        experimentId: { type: "string" },
+        conclusion: { type: "string" }
+      },
+      required: ["experimentId"]
+    },
+    requires: "experiment.update",
+    handler: async (input, ctx) => {
+      if (!ctx.can("experiment.update")) return { ok: false, error: "permission denied: experiment.update" };
+      const e = await ctx.prisma.experiment.findFirst({
+        where: { id: String(input.experimentId), orgId: ctx.orgId }
+      });
+      if (!e) return { ok: false, error: "experiment not found" };
+      if (e.status !== "RUNNING") return { ok: false, error: `cannot complete: experiment is ${e.status}` };
+      const { ExperimentService } = await import("@/server/services/experiment-service");
+      const r = await ExperimentService.completeExperiment(
+        ctx.prisma,
+        e.id,
+        input.conclusion ? String(input.conclusion) : ""
+      );
+      return {
+        ok: true,
+        output: { experimentId: e.id, winnerVariantId: r.winnerVariantId, conclusion: r.conclusion },
+        recordAction: {
+          type: "experiment.complete",
+          summary: `Completed experiment "${e.title}" — ${r.winnerVariantId ? `winner frozen (variant ${r.winnerVariantId})` : "no winner"}`,
+          payload: { experimentId: e.id, winnerVariantId: r.winnerVariantId }
+        }
+      };
+    }
+  }
+];
+
+// ──────────────────────────────────────────────────────────────────────────
 
 export const leadTools: ToolSpec[] = [
   {
@@ -911,7 +1069,8 @@ export const ALL_TOOLS: ToolSpec[] = [
   ...briefTools,
   ...leadTools,
   ...reportTools,
-  ...competitorTools
+  ...competitorTools,
+  ...experimentTools
 ];
 
 export const TOOL_BY_NAME: Record<string, ToolSpec> = Object.fromEntries(

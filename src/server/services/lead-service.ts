@@ -84,6 +84,21 @@ export const LeadService = {
       }
     });
     await audit(orgId, userId, "lead.create", { entityType: "Lead", entityId: l.id });
+
+    // Sprint 6 — if any RUNNING experiment targets this lead's campaign,
+    // deterministically bucket the lead into a variant. Best-effort.
+    try {
+      const { ExperimentService } = await import("@/server/services/experiment-service");
+      await ExperimentService.assignLead(prisma, {
+        id: l.id,
+        orgId,
+        clientId: l.clientId,
+        campaignId: l.campaignId ?? null
+      });
+    } catch (e) {
+      console.warn("experiment_assign_failed", String(e).slice(0, 200));
+    }
+
     return l;
   },
 
@@ -125,6 +140,17 @@ export const LeadService = {
       before: { status: l.status },
       after: { status }
     });
+
+    // Sprint 6 — feed running A/B experiments. Best-effort; never throw.
+    try {
+      const { ExperimentService } = await import("@/server/services/experiment-service");
+      if (status === "QUALIFIED" || status === "WON" || status === "LOST") {
+        await ExperimentService.recordOutcome(prisma, id, status as any, opts?.revenue ?? 0);
+      }
+    } catch (e) {
+      console.warn("experiment_outcome_record_failed", String(e).slice(0, 200));
+    }
+
     return updated;
   },
 

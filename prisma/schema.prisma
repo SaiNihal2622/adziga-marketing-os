@@ -35,6 +35,11 @@ model Organization {
   // Shape: AutoApprovePolicy[] — see src/server/services/policy-types.ts
   autoApprovePolicies String?
 
+  // Salt for deterministic A/B experiment bucketing. Generated lazily on
+  // first experiment run; keeps experiments stable across deploys and
+  // prevents dev/attacker from predicting variant assignment from DB rows.
+  experimentBucketSalt String?
+
   // India billing / GST fields (optional — only required if org is GST-registered and invoiced)
   gstin            String?  // 15-char Goods & Services Tax Identification Number
   pan              String?  // 10-char PAN for TDS / invoicing
@@ -450,6 +455,7 @@ model Lead {
   event      MarketingEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
   customer   Customer?
   touches    LeadTouch[]
+  assignments ExperimentAssignment[]
 
   @@index([orgId])
   @@index([clientId])
@@ -650,15 +656,98 @@ model Experiment {
   status          String    @default("PLANNED") // PLANNED | RUNNING | COMPLETED | CANCELLED
   startedAt       DateTime?
   completedAt     DateTime?
+  // Bayesian-analysis knobs
+  minSampleSize   Int       @default(30)    // per variant before winner can be called
+  winnerVariantId String?                   // set when COMPLETED + winner declared
+  metric          String    @default("qualified_rate") // qualified_rate | won_rate | revenue_per_lead
+  primary         Boolean   @default(false) // true = organisation-wide "default" experiment for the client
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  client   Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  campaign Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  org        Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  client     Client?             @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  campaign   Campaign?           @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  variants   ExperimentVariant[]
+  assignments ExperimentAssignment[]
 
   @@index([orgId])
   @@index([status])
+  @@index([campaignId])
+}
+
+// Each Experiment has 2+ variants. control + N treatments. `weight` is the
+// target traffic share; actual share is computed from assignments[].
+model ExperimentVariant {
+  id            String   @id @default(cuid())
+  experimentId  String
+  // CONTROL | TREATMENT — one CONTROL per experiment (validator enforces).
+  kind          String   @default("TREATMENT")
+  // Human label like "Control", "Founder-led", "Testimonial"
+  label         String
+  // Free-form JSON config describing the variant (hook style, copy length, etc.)
+  config        String?
+  // Target traffic share 0..1. Renormalised at save. Defaults to 1/N.
+  weight        Float    @default(0.5)
+  assignedCount Int      @default(0)
+  convertedCount Int     @default(0)
+  revenueTotal  Float    @default(0)
+  // Backwards-compatible persistence from the old `control` / `treatment` text columns
+  // lives on Experiment. New experiments get variants; old ones auto-migrate in code.
+  createdAt     DateTime @default(now())
+
+  experiment   Experiment             @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  assignments  ExperimentAssignment[]
+
+  @@index([experimentId])
+}
+
+// One row per (lead, experiment) — the variant this lead was bucketed into.
+// Deterministic: created from `hash(leadId + experimentId + secret)` mod 1.
+model ExperimentAssignment {
+  id           String   @id @default(cuid())
+  experimentId String
+  variantId    String
+  leadId       String
+  campaignId   String?
+  // The bucketed value (0..1) so we can audit assignments later.
+  bucket       Float
+  // IMPRESSION | CONVERTED | CONTROL | ABANDONED — flags for filtering.
+  status       String   @default("IMPRESSION")
+  assignedAt   DateTime @default(now())
+  // Optional tie-back to the LeadTouch that triggered it.
+  touchId      String?
+  metadata     String?
+
+  experiment Experiment        @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  variant    ExperimentVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  lead       Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  outcomes   ExperimentOutcome[]
+
+  @@unique([experimentId, leadId])
+  @@index([experimentId])
+  @@index([leadId])
+  @@index([variantId])
+}
+
+// Events observed for an assigned lead. Append-only.
+//   QUALIFIED — lead hit QUALIFIED status
+//   WON       — lead became a Customer (value = revenue)
+//   LOST      — lead hit LOST status
+//   REVENUE   — extra revenue event (upsell, repeat purchase)
+//   OPEN      — opened an email/DM (engagement signal)
+model ExperimentOutcome {
+  id            String   @id @default(cuid())
+  assignmentId  String
+  // QUALIFIED | WON | LOST | REVENUE | OPEN | VISIT
+  eventType     String
+  value         Float    @default(0)
+  observedAt    DateTime @default(now())
+  metadata      String?
+
+  assignment ExperimentAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId])
+  @@index([eventType])
 }
 
 // ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
