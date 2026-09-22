@@ -518,7 +518,7 @@ export const ROIService = {
       r.cac = r.customers > 0 ? r.spend / r.customers : 0;
       r.roas = r.spend > 0 ? r.revenue / r.spend : 0;
       r.valuePerRupee = r.roas;
-      r.qualifiedRate = r.leads > 0 ? (qualifiedCount / Math.max(leadCount, 1)) : 0; // platform-qualified wasn't broken out, use blended
+      r.qualifiedRate = r.leads > 0 ? r.qualified / r.leads : 0;
     }
 
     // Per-client revenue + spend.
