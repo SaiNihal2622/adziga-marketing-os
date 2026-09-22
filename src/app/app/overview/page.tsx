@@ -6,6 +6,7 @@ import { isOperatorRole } from "./_lib";
 import { PageHeader } from "../_components/page-header";
 import { Sparkline, LineChart, BarChart, DonutChart, FunnelChart } from "../_components/charts";
 import { EmptyState } from "../_components/empty-state";
+import { ActivityFeed } from "../_components/activity-feed";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,30 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
     prisma.client.count({ where: { orgId: session.orgId, status: "ACTIVE" } }),
     prisma.adSpend.findMany({ where: { orgId: session.orgId, date: { gte: new Date(Date.now() - 14 * 86400_000) } } })
   ]);
+
+  // Sprint 8b - recent audit-log events for the live activity feed (SSR seed)
+  const recentAudit = await prisma.auditLog.findMany({
+    where: { orgId: session.orgId },
+    orderBy: { id: "desc" },
+    take: 25
+  });
+  const recentAuditUserIds = Array.from(new Set(recentAudit.map((a) => a.userId).filter(Boolean) as string[]));
+  const recentAuditUsers = recentAuditUserIds.length > 0
+    ? await prisma.user.findMany({ where: { id: { in: recentAuditUserIds } }, select: { id: true, name: true, email: true } })
+    : [];
+  const recentAuditUserMap = new Map(recentAuditUsers.map((u) => [u.id, u]));
+  const initialActivity = recentAudit.reverse().map((e) => {
+    const u = e.userId ? recentAuditUserMap.get(e.userId) : null;
+    return {
+      id: e.id,
+      action: e.action,
+      entityType: e.entityType,
+      entityId: e.entityId,
+      summary: e.action.replace(/[._]/g, " "),
+      userName: u?.name ?? u?.email ?? "system",
+      ts: e.createdAt.toISOString()
+    };
+  });
 
   const totalSpend = campaigns.reduce((s, c) => s + c.spent, 0);
   const totalRevenue = customers.reduce((s, c) => s + c.revenue, 0);
@@ -473,27 +498,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
           </div>
         </div>
 
-        {/* Recent activity timeline */}
-        <div className="card-v0 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold tracking-tight">Recent activity</h3>
-            <Link href="/app/audit" className="text-xs text-brand-600 hover:underline">All →</Link>
-          </div>
-          <ul className="space-y-3">
-            {recentDecisions.length === 0 && <li className="text-sm text-ink-500 py-2">No recent activity.</li>}
-            {recentDecisions.map((d) => (
-              <li key={d.id} className="flex gap-3">
-                <div className="size-6 rounded-full bg-ink-100 flex items-center justify-center text-[10px] font-semibold text-ink-600 shrink-0 mt-0.5">
-                  {d.decisionType[0]}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{d.decision.slice(0, 60)}</div>
-                  <div className="text-xs text-ink-500 mt-0.5 tabular-nums">{timeAgo(d.createdAt)}</div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {/* Live activity (Sprint 8b) */}
+        <ActivityFeed initialEvents={initialActivity} />
       </div>
 
       {/* Open tasks + requests */}

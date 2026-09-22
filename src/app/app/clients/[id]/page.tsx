@@ -54,6 +54,9 @@ export default async function ClientDetail({ params }: { params: { id: string } 
             <Link href={`/app/clients/${client.id}/roi`}>
               <Button variant="primary">ROI report</Button>
             </Link>
+            <Link href={`/app/clients/${client.id}/cohorts`}>
+              <Button variant="outline">Cohorts</Button>
+            </Link>
             <Link href={`/app/clients/${client.id}/command-center`}>
               <Button variant="outline">Command Center</Button>
             </Link>
