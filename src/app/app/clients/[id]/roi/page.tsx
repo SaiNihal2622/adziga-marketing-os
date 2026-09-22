@@ -67,7 +67,10 @@ export default async function ClientRoiPage({
               {r.kpis.roas.toFixed(2)}× ROAS
             </Badge>
             {r.kpis.ltvEstimate > 0 && (
-              <Badge variant="info">LTV est. {fmtINR(r.kpis.ltvEstimate)}</Badge>
+              <Badge variant="info">
+                LTV est. {fmtINR(r.kpis.ltvEstimate)}
+                {r.kpis.ltvCacRatio > 0 && ` · ${r.kpis.ltvCacRatio.toFixed(1)}× LTV/CAC`}
+              </Badge>
             )}
           </div>
         }
@@ -103,6 +106,17 @@ export default async function ClientRoiPage({
         <Kpi label="Leads" value={fmtNum(r.kpis.totalLeads)} hint={`${fmtPct(r.kpis.qualifiedRate, 1)} qualified`} />
         <Kpi label="Qualified" value={fmtNum(r.kpis.totalQualified)} />
         <Kpi label="Customer rate" value={fmtPct(r.kpis.customerRate, 1)} hint="wins / leads" />
+        <Kpi
+          label="LTV/CAC"
+          value={r.kpis.ltvCacRatio > 0 ? `${r.kpis.ltvCacRatio.toFixed(2)}×` : "—"}
+          hint={r.kpis.ltvCacRatio >= 3 ? "Healthy" : r.kpis.ltvCacRatio >= 1 ? "Marginal" : "Below 1×"}
+          tone={r.kpis.ltvCacRatio >= 3 ? "success" : r.kpis.ltvCacRatio >= 1 ? "neutral" : "accent"}
+        />
+        <Kpi
+          label="Months to payback"
+          value={r.kpis.monthsToPayback > 0 && r.kpis.monthsToPayback < 120 ? r.kpis.monthsToPayback.toFixed(1) : "—"}
+          hint="at repeat rate 1.0/month"
+        />
       </div>
 
       {/* Alerts */}

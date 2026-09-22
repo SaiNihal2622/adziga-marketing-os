@@ -83,6 +83,35 @@ export const LeadService = {
         status: "NEW"
       }
     });
+
+    // Sprint 9a — auto-tag lead from utm/landing-page heuristics.
+    try {
+      const { LeadTagger } = await import("@/server/services/lead-tagger");
+      const [client, campaign] = await Promise.all([
+        prisma.client.findUnique({ where: { id: input.clientId }, select: { industry: true } }),
+        input.campaignId
+          ? prisma.campaign.findUnique({ where: { id: input.campaignId }, select: { platform: true } })
+          : null
+      ]);
+      const tags = LeadTagger.merge({
+        utmSource: input.utmSource,
+        utmMedium: input.utmMedium,
+        utmCampaign: input.utmCampaign,
+        utmContent: input.utmContent,
+        landingPage: input.landingPage,
+        email: input.email,
+        phone: input.phone,
+        clientIndustry: client?.industry ?? null,
+        campaignPlatform: campaign?.platform ?? null
+      });
+      if (tags) {
+        await prisma.lead.update({ where: { id: l.id }, data: { tags } });
+        (l as any).tags = tags;
+      }
+    } catch (e) {
+      console.warn("lead_tag_failed", String(e).slice(0, 200));
+    }
+
     await audit(orgId, userId, "lead.create", { entityType: "Lead", entityId: l.id });
 
     // Sprint 6 — if any RUNNING experiment targets this lead's campaign,

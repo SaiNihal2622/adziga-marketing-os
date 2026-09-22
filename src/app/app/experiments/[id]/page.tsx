@@ -27,6 +27,9 @@ async function transition(formData: FormData) {
     await prisma.experiment.update({ where: { id }, data: { status: "RUNNING", startedAt: new Date() } });
   } else if (action === "cancel") {
     await prisma.experiment.update({ where: { id }, data: { status: "CANCELLED", completedAt: new Date() } });
+  } else if (action === "promote") {
+    // Sprint 9c — promote winner config into a StrategyRecommendation.
+    await ExperimentService.promoteWinner(prisma, id, { createdById: session.userId });
   } else {
     return;
   }
@@ -120,6 +123,13 @@ export default async function ExperimentDetail({ params }: { params: { id: strin
                 <input type="hidden" name="id" value={e.id} />
                 <input type="hidden" name="action" value="cancel" />
                 <button className="btn btn-ghost btn-sm">Cancel</button>
+              </form>
+            )}
+            {e.status === "COMPLETED" && e.winnerVariantId && (
+              <form action={transition}>
+                <input type="hidden" name="id" value={e.id} />
+                <input type="hidden" name="action" value="promote" />
+                <button className="btn btn-primary btn-sm">↑ Promote winner to Strategy</button>
               </form>
             )}
           </div>

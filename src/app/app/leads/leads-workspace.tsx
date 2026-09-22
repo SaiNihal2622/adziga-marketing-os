@@ -24,6 +24,7 @@ type Lead = {
   lastContactAt: string | null;
   updatedAt: string;
   createdAt: string;
+  tags: string | null;
   client: { id: string; businessName: string } | null;
   campaign: { name: string } | null;
 };
@@ -648,6 +649,7 @@ export function LeadsWorkspace({
   const [view, setView] = useState<"table" | "kanban">("table");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [qualityFilter, setQualityFilter] = useState<string>("all"); // all | hot | warm | cold
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Counts (over ALL leads, not the filtered set)
@@ -661,6 +663,7 @@ export function LeadsWorkspace({
   const filtered = useMemo(() => {
     let result = initialLeads;
     if (statusFilter !== "all") result = result.filter((l) => l.status === statusFilter);
+    if (qualityFilter !== "all") result = result.filter((l) => (l.tags ?? "").includes(`quality:${qualityFilter}`));
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -673,7 +676,7 @@ export function LeadsWorkspace({
       );
     }
     return result;
-  }, [initialLeads, search, statusFilter]);
+  }, [initialLeads, search, statusFilter, qualityFilter]);
 
   const displayed = filtered.slice(0, 20);
   const selectedLead = selectedId ? initialLeads.find((l) => l.id === selectedId) ?? null : null;
@@ -761,6 +764,17 @@ export function LeadsWorkspace({
             onClick={() => setStatusFilter(c.key)}
           />
         ))}
+        {/* Quality filter (Sprint 9a) — derived from lead tags */}
+        <button
+          onClick={() => setQualityFilter(qualityFilter === "hot" ? "all" : "hot")}
+          className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium border focus-ring ${
+            qualityFilter === "hot"
+              ? "bg-rose-50 text-rose-700 border-rose-300"
+              : "bg-white text-ink-700 border-ink-200 hover:bg-ink-50"
+          }`}
+        >
+          🔥 Hot only
+        </button>
         <button className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium bg-white text-ink-700 border border-dashed border-ink-300 hover:bg-ink-50 hover:border-ink-400 focus-ring">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M6 12h12M10 18h4" strokeLinecap="round"/></svg>
           Advanced filters

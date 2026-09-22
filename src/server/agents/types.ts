@@ -1137,6 +1137,77 @@ export const reportTools: ToolSpec[] = [
       const result = await detectOrgAnomalies(ctx.orgId, Number(input.days ?? 30));
       return { ok: true, output: result };
     }
+  },
+  {
+    name: "analytics.campaignAnomalies",
+    description:
+      "Sprint 9b — per-campaign anomaly detection with auto-pause recommendation. Returns each active campaign's CPL/spend/leads anomalies plus an overall recommendAction (pause / watch / scale / none) and a short reason. Use this when the user asks which campaigns to pause, which are running efficiently, or what's drifting off-baseline.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        days: { type: "number", default: 30 },
+        recommendation: { type: "string", enum: ["pause", "watch", "scale"] }
+      }
+    },
+    requires: "analytics.read",
+    handler: async (input, ctx) => {
+      const { CampaignAnomalyService } = await import("@/server/services/campaign-anomaly-service");
+      let result = await CampaignAnomalyService.detectForOrg(ctx.orgId, Number(input.days ?? 30));
+      if (input.recommendation) {
+        result = result.filter((a) => a.recommendAction === input.recommendation);
+      }
+      // Trim noisy detail — top 3 metrics per campaign.
+      return {
+        ok: true,
+        output: {
+          count: result.length,
+          pauseCandidates: result.filter((a) => a.recommendAction === "pause").map((a) => ({ campaignId: a.campaignId, campaignName: a.campaignName, platform: a.platform, reason: a.reason })),
+          scaleCandidates: result.filter((a) => a.recommendAction === "scale").map((a) => ({ campaignId: a.campaignId, campaignName: a.campaignName, platform: a.platform, reason: a.reason })),
+          full: result.slice(0, 20).map((a) => ({
+            campaignId: a.campaignId,
+            campaignName: a.campaignName,
+            platform: a.platform,
+            status: a.status,
+            recommendAction: a.recommendAction,
+            reason: a.reason,
+            topMetrics: a.metrics.slice(0, 3)
+          }))
+        }
+      };
+    }
+  },
+  {
+    name: "experiment.promote",
+    description:
+      "Sprint 9c — when an experiment declares a winner, this tool promotes the winning variant's config into a StrategyRecommendation that the team reviews. Returns the promotion id and the winner's config + recommended channels. Use after experiment.complete.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        experimentId: { type: "string" },
+        channels: { type: "array", items: { type: "string" } }
+      },
+      required: ["experimentId"]
+    },
+    requires: "experiment.update",
+    handler: async (input, ctx) => {
+      const { ExperimentService } = await import("@/server/services/experiment-service");
+      const promo = await ExperimentService.promoteWinner(ctx.prisma, String(input.experimentId), {
+        createdById: ctx.userId ?? ctx.agentId,
+        channels: Array.isArray(input.channels) ? input.channels.map(String) : undefined
+      });
+      if (!promo) {
+        return { ok: false, error: "experiment has no winner yet — complete it first" };
+      }
+      return {
+        ok: true,
+        output: promo,
+        recordAction: {
+          type: "experiment.promote",
+          summary: `Promoted winner "${promo.winnerLabel}" (config: ${JSON.stringify(promo.winnerConfig)}) for ${promo.recommendedChannels.join(", ") || "default channels"}`,
+          payload: { promotionId: promo.promotionId, experimentId: input.experimentId }
+        }
+      };
+    }
   }
 ];
 

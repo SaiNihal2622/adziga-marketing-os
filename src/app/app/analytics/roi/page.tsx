@@ -71,6 +71,17 @@ export default async function OrgRoiPage({
           hint={`ROAS ${d.kpis.roas.toFixed(2)}×`}
         />
         <Kpi label="CAC" value={fmtINR(d.kpis.cac)} hint={`${d.kpis.totalCustomers} customers`} />
+        <Kpi
+          label="LTV/CAC"
+          value={d.kpis.ltvCacRatio > 0 ? `${d.kpis.ltvCacRatio.toFixed(2)}×` : "—"}
+          hint={d.kpis.ltvCacRatio >= 3 ? "Healthy" : d.kpis.ltvCacRatio >= 1 ? "Marginal" : "Below 1×"}
+          tone={d.kpis.ltvCacRatio >= 3 ? "success" : d.kpis.ltvCacRatio >= 1 ? "neutral" : "accent"}
+        />
+        <Kpi
+          label="Months to payback"
+          value={d.kpis.monthsToPayback > 0 && d.kpis.monthsToPayback < 120 ? d.kpis.monthsToPayback.toFixed(1) : "—"}
+          hint="at repeat rate 1.0/month"
+        />
         <Kpi label="Leads" value={fmtNum(d.kpis.totalLeads)} />
         <Kpi label="Qualified" value={fmtNum(d.kpis.totalQualified)} hint={`${(d.kpis.qualifiedRate * 100).toFixed(1)}% of leads`} />
         <Kpi label="Customers" value={fmtNum(d.kpis.totalCustomers)} />

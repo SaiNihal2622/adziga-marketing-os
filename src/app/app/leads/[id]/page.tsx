@@ -223,6 +223,20 @@ export default async function LeadDetail({ params }: { params: { id: string } })
             <StatRow label="Landing page" value={<code className="text-xs">{l.landingPage ?? "—"}</code>} />
             <StatRow label="Click ID" value={<code className="text-xs">{l.clickId ?? "—"}</code>} />
             <StatRow label="UTM Source/Medium" value={<code className="text-xs">{l.utmSource ?? "—"} / {l.utmMedium ?? "—"}</code>} />
+            {l.tags && (
+              <StatRow
+                label="Tags"
+                value={
+                  <div className="flex flex-wrap gap-1">
+                    {l.tags.split(",").filter(Boolean).map((tag) => (
+                      <Badge key={tag} variant={tag.startsWith("quality:hot") ? "success" : tag.startsWith("quality:cold") ? "neutral" : "info"} className="text-[10px]">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                }
+              />
+            )}
             {l.customer && (
               <StatRow
                 label="Linked customer"

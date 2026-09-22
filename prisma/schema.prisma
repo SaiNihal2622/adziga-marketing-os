@@ -440,6 +440,11 @@ model Lead {
   revenue          Float     @default(0)
   followUps        String?
   lastContactAt    DateTime?
+  // Sprint 9a — derived tags from utm/landing-page/email patterns. Comma-separated.
+  // Set automatically by LeadTagger when the lead is created. Examples:
+  //   industry:fintech, region:tier1, quality:hot, source:paid
+  tags            String?
+
   // When the lead converted to a Customer (status -> WON). Same value as wonAt
   // but kept as a distinct field for clean attribution rollups.
   convertedAt      DateTime?

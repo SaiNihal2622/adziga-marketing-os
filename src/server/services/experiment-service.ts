@@ -427,6 +427,85 @@ export const ExperimentService = {
   },
 
   /**
+   * Sprint 9c — when an experiment declares a winner, generate a Promotion
+   * record that bundles:
+   *   • The winner's variant config (e.g. {"hook": "founder_led"})
+   *   • A short recommendation text
+   *   • A StrategyRecommendation row so the Strategy agent can act on it
+   *
+   * This is read-only + creates a single StrategyRecommendation row. The
+   * team reviews it from the Strategy tab and decides what to launch.
+   */
+  async promoteWinner(
+    prisma: PrismaClient,
+    experimentId: string,
+    options: { createdById: string; channels?: string[] }
+  ): Promise<{
+    promotionId: string;
+    winnerLabel: string;
+    winnerConfig: Record<string, unknown> | null;
+    recommendedChannels: string[];
+  } | null> {
+    const exp = await prisma.experiment.findUnique({
+      where: { id: experimentId },
+      include: { variants: { orderBy: { id: "asc" } } }
+    });
+    if (!exp || exp.status !== "COMPLETED" || !exp.winnerVariantId) {
+      return null;
+    }
+    const winner = exp.variants.find((v) => v.id === exp.winnerVariantId);
+    if (!winner) return null;
+
+    const winnerConfig = winner.config ? (JSON.parse(winner.config) as Record<string, unknown>) : null;
+
+    // Recommended channels = the platform the campaign was on (if any).
+    const recommendedChannels: string[] = options.channels ?? [];
+    if (recommendedChannels.length === 0 && exp.campaignId) {
+      const camp = await prisma.campaign.findUnique({
+        where: { id: exp.campaignId },
+        select: { platform: true }
+      });
+      if (camp) recommendedChannels.push(camp.platform);
+    }
+
+    const reasoning =
+      `Experiment "${exp.title}" declared winner: ${winner.label} (variant config: ${JSON.stringify(winnerConfig)}). ` +
+      `Promote this config to ${recommendedChannels.join(", ") || "all relevant channels"}.`;
+
+    const promo = await prisma.strategyRecommendation.create({
+      data: {
+        orgId: exp.orgId,
+        clientId: exp.clientId,
+        industry: exp.variable,
+        objective: exp.kpi,
+        monthlyBudget: exp.budget ?? 0,
+        inputs: JSON.stringify({
+          source: "experiment.promoteWinner",
+          experimentId: exp.id,
+          winnerVariantId: winner.id,
+          winnerLabel: winner.label,
+          winnerConfig,
+          recommendedChannels
+        }),
+        recommendedChannels: JSON.stringify(recommendedChannels),
+        expectedCpl: 0,
+        expectedCac: 0,
+        expectedRoas: 0,
+        confidence: 0.85,
+        reasoning,
+        status: "PROPOSED"
+      }
+    });
+
+    return {
+      promotionId: promo.id,
+      winnerLabel: winner.label,
+      winnerConfig,
+      recommendedChannels
+    };
+  },
+
+  /**
    * Seed variants for a new experiment. Validates exactly one CONTROL.
    * Renormalises weights.
    */

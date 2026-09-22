@@ -88,6 +88,9 @@ export type ClientRoiReport = {
     cac: number;           // spend / customer
     ltvEstimate: number;   // revenue / customer (proxy for LTV at this horizon)
     avgDealSize: number;
+    ltvCacRatio: number;   // LTV / CAC — payback efficiency
+    monthsToPayback: number; // months until avg customer revenue covers CAC (assumes repeat rate)
+    repeatRateAssumption: number; // 0..1, assumption used for months-to-payback
     totalLeads: number;
     totalQualified: number;
     totalCustomers: number;
@@ -109,6 +112,9 @@ export type OrgWideDashboard = {
     netRoi: number;
     roas: number;
     cac: number;
+    ltvCacRatio: number;        // LTV / CAC
+    monthsToPayback: number;   // assumes monthly repeat
+    repeatRateAssumption: number;
     totalLeads: number;
     totalQualified: number;
     totalCustomers: number;
@@ -417,6 +423,17 @@ export const ROIService = {
         cac: totalCustomers > 0 ? totalSpend / totalCustomers : 0,
         ltvEstimate: totalCustomers > 0 ? totalRevenue / totalCustomers : 0,
         avgDealSize: totalCustomers > 0 ? totalRevenue / totalCustomers : 0,
+        ltvCacRatio: totalCustomers > 0 && totalSpend > 0 ? (totalRevenue / totalCustomers) / (totalSpend / totalCustomers) : 0,
+        // Assume repeat-purchase rate 0.5/month for non-subscription, 1.0/month for subscription.
+        // Without signal we default to 1.0 (treating revenue as monthly recurring).
+        repeatRateAssumption: 1.0,
+        monthsToPayback: (() => {
+          if (totalCustomers === 0 || totalSpend === 0) return 0;
+          const cac = totalSpend / totalCustomers;
+          const ltv = totalRevenue / totalCustomers;
+          if (ltv <= 0) return Infinity;
+          return cac / ltv; // months if LTV accrues monthly
+        })(),
         totalLeads: leadAgg,
         totalQualified: qualifiedAgg,
         totalCustomers,
@@ -664,6 +681,17 @@ export const ROIService = {
         netRoi: totalRevenue - totalSpend,
         roas: totalSpend > 0 ? totalRevenue / totalSpend : 0,
         cac: totalCustomers > 0 ? totalSpend / totalCustomers : 0,
+        ltvCacRatio: totalCustomers > 0 && totalSpend > 0
+          ? (totalRevenue / totalCustomers) / (totalSpend / totalCustomers)
+          : 0,
+        monthsToPayback: (() => {
+          if (totalCustomers === 0 || totalSpend === 0) return 0;
+          const cac = totalSpend / totalCustomers;
+          const ltv = totalRevenue / totalCustomers;
+          if (ltv <= 0) return Infinity;
+          return cac / ltv;
+        })(),
+        repeatRateAssumption: 1.0,
         totalLeads: leadCount,
         totalQualified: qualifiedCount,
         totalCustomers,
