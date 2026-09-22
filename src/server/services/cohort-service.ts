@@ -243,5 +243,127 @@ export const CohortService = {
       cumulativeCustomers: counts.reduce((acc: number[], _, i) => [...acc, (acc[i - 1] ?? 0) + counts[i]], []),
       cumulativeRevenue: revenue.reduce((acc: number[], _, i) => [...acc, (acc[i - 1] ?? 0) + revenue[i]], [])
     };
+  },
+
+  /**
+   * Sprint 11e — cohort retention by acquisition channel.
+   * Same triangular matrix but split per Campaign.platform.
+   * Returns per-platform cohort matrices so the UI can render side-by-side.
+   */
+  async cohortByPlatform(
+    orgId: string,
+    clientId?: string,
+    months: number = 6
+  ): Promise<{
+    months: number;
+    cohortLabels: string[];
+    platforms: Array<{
+      platform: string;
+      cohortSizes: number[];
+      cumulativeConversion: number[];
+      matrix: number[][];
+    }>;
+    caveat: string | null;
+    computedAt: string;
+  }> {
+    const since = new Date();
+    since.setUTCDate(1);
+    since.setUTCHours(0, 0, 0, 0);
+    since.setUTCMonth(since.getUTCMonth() - (months - 1));
+
+    const rows = await prisma.$queryRaw<Array<{
+      leadId: string;
+      leadCohort: Date;
+      customerAcquired: Date | null;
+      platform: string;
+    }>>`
+      SELECT
+        l.id AS "leadId",
+        date_trunc('month', l."createdAt") AS "leadCohort",
+        c."acquiredAt" AS "customerAcquired",
+        COALESCE(camp.platform, 'unknown') AS platform
+      FROM "Lead" l
+      LEFT JOIN "Customer" c ON c."leadId" = l.id
+      LEFT JOIN "Campaign" camp ON camp.id = l."campaignId"
+      WHERE l."orgId" = ${orgId}
+        ${clientId ? Prisma.sql`AND l."clientId" = ${clientId}` : Prisma.empty}
+        AND l."createdAt" >= ${since}
+    `.catch(() => [] as any[]);
+
+    if (rows.length === 0) {
+      const emptyLabels: string[] = [];
+      for (let i = months - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setUTCDate(1);
+        d.setUTCHours(0, 0, 0, 0);
+        d.setUTCMonth(d.getUTCMonth() - i);
+        emptyLabels.push(monthKey(d));
+      }
+      return {
+        months,
+        cohortLabels: emptyLabels,
+        platforms: [],
+        caveat: "No leads in the chosen window.",
+        computedAt: new Date().toISOString()
+      };
+    }
+
+    // Build cohort labels
+    const cohortLabels: string[] = [];
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCHours(0, 0, 0, 0);
+      d.setUTCMonth(d.getUTCMonth() - i);
+      cohortLabels.push(monthKey(d));
+    }
+    const cohortIdx = new Map(cohortLabels.map((l, i) => [l, i]));
+
+    // Group by platform
+    const byPlatform = new Map<string, { cohortSizes: number[]; matrix: number[][] }>();
+    for (const r of rows) {
+      const ck = monthKey(r.leadCohort);
+      const idx = cohortIdx.get(ck);
+      if (idx === undefined) continue;
+      let bucket = byPlatform.get(r.platform);
+      if (!bucket) {
+        bucket = {
+          cohortSizes: new Array(months).fill(0),
+          matrix: Array.from({ length: months }, () => new Array(months + 1).fill(0))
+        };
+        byPlatform.set(r.platform, bucket);
+      }
+      bucket.cohortSizes[idx]++;
+      if (r.customerAcquired) {
+        const convKey = monthKey(r.customerAcquired);
+        const diff = monthDiff(ck, convKey);
+        const clamped = Math.min(Math.max(diff, 0), months);
+        bucket.matrix[idx][clamped]++;
+      } else {
+        const cohortAge = monthDiff(ck, monthKey(new Date()));
+        if (cohortAge < months) bucket.matrix[idx][months]++;
+      }
+    }
+
+    const platforms = Array.from(byPlatform.entries()).map(([platform, bucket]) => {
+      const cumulativeConversion = bucket.cohortSizes.map((_, i) => {
+        const total = bucket.cohortSizes[i] || 1;
+        const converted = bucket.matrix[i].slice(0, months).reduce((s, v) => s + v, 0);
+        return converted / total;
+      });
+      return { platform, cohortSizes: bucket.cohortSizes, matrix: bucket.matrix, cumulativeConversion };
+    }).sort((a, b) => {
+      const aTotal = a.cohortSizes.reduce((s, v) => s + v, 0);
+      const bTotal = b.cohortSizes.reduce((s, v) => s + v, 0);
+      return bTotal - aTotal;
+    });
+
+    return {
+      months,
+      cohortLabels,
+      platforms,
+      caveat: null,
+      computedAt: new Date().toISOString()
+    };
   }
 };

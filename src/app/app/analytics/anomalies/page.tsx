@@ -86,6 +86,13 @@ export default async function AnomaliesPage({
 
       <SectionHeader title={`Campaigns${recFilter ? ` · ${recFilter}` : ""}`} description={`Last ${days} days`} />
 
+      {/* What-if simulator — uses last 30 days as baseline */}
+      <div className="mb-4">
+        <Link href="/app/analytics/anomalies/simulate" className="text-xs text-brand-600 hover:underline">
+          Open full what-if simulator →
+        </Link>
+      </div>
+
       <div className="space-y-3">
         {filtered.length === 0 && (
           <Card>

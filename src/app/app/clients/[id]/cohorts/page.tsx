@@ -34,6 +34,7 @@ export default async function CohortsPage({
 
   const cohort = await CohortService.leadToCustomerCohort(session.orgId, params.id, months);
   const customerCohort = await CohortService.customerAcquisitionCohort(session.orgId, params.id, months);
+  const byPlatform = await CohortService.cohortByPlatform(session.orgId, params.id, months);
 
   // Heat scale: green if high retention, red if low.
   function heat(v: number, maxV: number): string {
@@ -227,6 +228,52 @@ export default async function CohortsPage({
               </table>
             </div>
           </Card>
+
+          {/* Sprint 11e — cohort retention by channel */}
+          <SectionHeader title="By acquisition channel" description="Cumulative conversion per cohort, sliced by campaign platform." />
+          {byPlatform.platforms.length === 0 ? (
+            <Card>
+              <p className="text-sm text-ink-500 text-center py-6">No platform-tagged leads in this window.</p>
+            </Card>
+          ) : (
+            <Card padding="none">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-ink-500 border-b border-ink-200 bg-ink-50">
+                    <tr>
+                      <th className="text-left px-4 py-2">Platform</th>
+                      <th className="text-left px-4 py-2">Cohort</th>
+                      <th className="text-right">Size</th>
+                      <th className="text-right">Cum. conv</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {byPlatform.platforms.flatMap((p) =>
+                      p.cohortSizes.map((size, i) =>
+                        size > 0 ? (
+                          <tr key={`${p.platform}-${i}`} className="border-b border-ink-100">
+                            {i === 0 && (
+                              <td className="px-4 py-2 font-medium text-ink-900" rowSpan={p.cohortSizes.filter((s) => s > 0).length}>
+                                {p.platform}
+                                <div className="text-[10px] text-ink-500 font-mono">
+                                  n={p.cohortSizes.reduce((s, v) => s + v, 0)}
+                                </div>
+                              </td>
+                            )}
+                            <td className="px-4 py-2 font-mono text-ink-700">{byPlatform.cohortLabels[i]}</td>
+                            <td className="px-4 py-2 text-right font-mono">{size}</td>
+                            <td className={`px-4 py-2 text-right font-mono font-semibold ${p.cumulativeConversion[i] >= 0.1 ? "text-emerald-700" : p.cumulativeConversion[i] > 0 ? "text-amber-700" : "text-rose-700"}`}>
+                              {(p.cumulativeConversion[i] * 100).toFixed(1)}%
+                            </td>
+                          </tr>
+                        ) : null
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
         </>
       )}
     </div>

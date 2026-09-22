@@ -28,6 +28,11 @@ export type CampaignAnomaly = {
   budget: number | null;
   spent: number;
   budgetPct: number;
+  industry: string | null;
+  /** Industry-benchmark CPL ceiling (cplMax) for (industry, platform). Null when no row. */
+  industryCplMax: number | null;
+  /** True if observed CPL exceeds 80% of the industry ceiling — strong auto-pause signal regardless of Z-score. */
+  exceedsIndustryCeiling: boolean;
   metrics: Array<{
     metric: "cpl" | "spend" | "leads";
     severity: "info" | "warning" | "critical";
@@ -56,11 +61,35 @@ export const CampaignAnomalyService = {
     // 1. Get all active campaigns (anything with status=ACTIVE).
     const campaigns = await prisma.campaign.findMany({
       where: { orgId, status: { in: ["ACTIVE", "PAUSED"] } },
-      include: { client: { select: { id: true, businessName: true } } },
+      include: { client: { select: { id: true, businessName: true, industry: true } } },
       orderBy: { updatedAt: "desc" }
     });
 
     if (campaigns.length === 0) return [];
+
+    // 1b. Industry benchmark lookup so we can tighten or relax thresholds per (industry, channel).
+    // Default threshold is 2.5σ; if the observed CPL exceeds industry-benchmark cplMax * 0.8
+    // we treat it as "auto-pause" regardless of Z-score.
+    const industrySlugs = Array.from(
+      new Set(
+        campaigns
+          .map((c) => c.client?.industry ?? "")
+          .filter(Boolean) as string[]
+      )
+    );
+    const benchmarkRows = industrySlugs.length > 0
+      ? await prisma.industryBenchmark.findMany({
+          where: { industry: { in: industrySlugs }, region: "IN", objective: "lead_generation" }
+        })
+      : [];
+    const benchByKey = new Map<string, { cplMax: number; cplMedian: number; industry: string }>();
+    for (const b of benchmarkRows) {
+      benchByKey.set(`${b.industry}:${b.channel}`, {
+        cplMax: b.cplMax,
+        cplMedian: b.cplMedian,
+        industry: b.industry
+      });
+    }
 
     const out: CampaignAnomaly[] = [];
 
@@ -131,6 +160,14 @@ export const CampaignAnomalyService = {
       }
 
       if (metricFindings.length === 0) {
+        // Industry-benchmark ceiling check applies even when no rolling-window anomaly.
+        const industry = c.client?.industry ?? null;
+        const bench = industry ? benchByKey.get(`${industry}:${c.platform}`) ?? null : null;
+        const industryCplMax = bench?.cplMax ?? null;
+        const totalSpendHist = dailySeries.reduce((s, d) => s + d.spend, 0);
+        const totalLeadsHist = dailySeries.reduce((s, d) => s + d.leads, 0);
+        const histCpl = totalLeadsHist > 0 ? totalSpendHist / totalLeadsHist : 0;
+        const histExceeds = industryCplMax !== null && histCpl > industryCplMax * 0.8;
         out.push({
           campaignId: c.id,
           campaignName: c.name,
@@ -141,11 +178,16 @@ export const CampaignAnomalyService = {
           budget: c.budget,
           spent: c.spent,
           budgetPct: c.budget && c.budget > 0 ? (c.spent / c.budget) * 100 : 0,
+          industry,
+          industryCplMax,
+          exceedsIndustryCeiling: histExceeds,
           metrics: [],
-          recommendAction: "none",
-          reason: hasRealSpendData
-            ? "No anomalies detected in the last window."
-            : "Insufficient spend history (need ≥5 daily AdSpend rows). Connect ad-platform sync for anomaly detection.",
+          recommendAction: histExceeds ? "pause" : "none",
+          reason: histExceeds
+            ? `CPL ₹${histCpl.toFixed(0)} exceeds 80% of industry ceiling ₹${industryCplMax?.toFixed(0)} for ${industry}/${c.platform}. Pause recommended (rolling window OK; industry-relative check triggered).`
+            : (hasRealSpendData
+                ? "No anomalies detected in the last window."
+                : "Insufficient spend history (need ≥5 daily AdSpend rows). Connect ad-platform sync for anomaly detection."),
           hasEnoughHistory: hasRealSpendData
         });
         continue;
@@ -157,9 +199,23 @@ export const CampaignAnomalyService = {
       const spendSpike = metricFindings.find((f) => f.metric === "spend" && f.direction === "spike" && f.severity === "critical");
       const cplDrop = metricFindings.find((f) => f.metric === "cpl" && f.direction === "drop" && f.severity === "warning" || f.severity === "critical");
 
+      // Industry-benchmark ceiling check. If we have a benchmark row for
+      // (industry, channel) and the current CPL exceeds 80% of cplMax,
+      // this is an industry-relative anomaly worth surfacing even if the
+      // Z-score stays below threshold (campaigns that have always been
+      // inefficient don't show up in rolling baselines).
+      const industry = c.client?.industry ?? null;
+      const bench = industry ? benchByKey.get(`${industry}:${c.platform}`) ?? null : null;
+      const industryCplMax = bench?.cplMax ?? null;
+      const latestCpl = metricFindings.find((f) => f.metric === "cpl")?.observed ?? null;
+      const exceedsIndustryCeiling = industryCplMax !== null && latestCpl !== null && latestCpl > industryCplMax * 0.8;
+
       let recommendAction: Recommendation = "watch";
       let reason = "Anomalies detected but within watch thresholds.";
-      if (cplSpike && cplSpike.severity === "critical") {
+      if (exceedsIndustryCeiling) {
+        recommendAction = "pause";
+        reason = `CPL ₹${latestCpl?.toFixed(0)} exceeds 80% of industry ceiling ₹${industryCplMax?.toFixed(0)} for ${industry}/${c.platform}. Pause recommended regardless of Z-score.`;
+      } else if (cplSpike && cplSpike.severity === "critical") {
         recommendAction = "pause";
         reason = `CPL is ${cplSpike.deltaPct.toFixed(0)}% above baseline (z=${cplSpike.zScore.toFixed(1)}). Critical spike — recommend pausing and reviewing creative.`;
       } else if (cplSpike) {
@@ -186,6 +242,9 @@ export const CampaignAnomalyService = {
         budget: c.budget,
         spent: c.spent,
         budgetPct: c.budget && c.budget > 0 ? (c.spent / c.budget) * 100 : 0,
+        industry,
+        industryCplMax,
+        exceedsIndustryCeiling,
         metrics: metricFindings.sort((a, b) => severityWeight(b.severity) - severityWeight(a.severity)),
         recommendAction,
         reason,
