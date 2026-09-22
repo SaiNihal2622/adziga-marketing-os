@@ -34,6 +34,30 @@ async function markProcessed(formData: FormData) {
   revalidatePath("/app/admin/webhooks");
 }
 
+async function retryDelivery(formData: FormData) {
+  "use server";
+  const session = await requireRole([Role.FOUNDER, Role.ADMIN]);
+  const id = String(formData.get("id"));
+  // Hit the API route via internal fetch — keeps retry logic in one place.
+  const baseUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const cookie = await import("next/headers").then((m) => m.cookies()).then((c) => c.toString());
+  await fetch(`${baseUrl}/api/admin/webhooks/${id}/retry`, {
+    method: "POST",
+    headers: { Cookie: cookie },
+    cache: "no-store"
+  }).catch(() => null);
+  await prisma.auditLog.create({
+    data: {
+      orgId: session.orgId,
+      userId: session.userId,
+      action: "webhook.retry",
+      entityType: "WebhookDelivery",
+      entityId: id
+    }
+  });
+  revalidatePath("/app/admin/webhooks");
+}
+
 export default async function WebhooksPage({
   searchParams
 }: {
@@ -175,13 +199,25 @@ export default async function WebhooksPage({
                       {d.error ?? "—"}
                     </td>
                     <td className="px-4 py-2 text-xs text-right">
-                      {(d.status === "received" || d.status === "processing") && (
-                        <form action={markProcessed}>
-                          <input type="hidden" name="id" value={d.id} />
-                          <button className="text-rose-600 hover:text-rose-800 font-medium">
-                            Mark failed
-                          </button>
-                        </form>
+                      {(d.status === "received" || d.status === "processing" || d.status === "failed") && (
+                        <div className="flex items-center gap-2 justify-end">
+                          {d.status === "failed" && (
+                            <form action={retryDelivery}>
+                              <input type="hidden" name="id" value={d.id} />
+                              <button className="text-brand-600 hover:text-brand-800 font-medium">
+                                ↻ Retry
+                              </button>
+                            </form>
+                          )}
+                          {(d.status === "received" || d.status === "processing") && (
+                            <form action={markProcessed}>
+                              <input type="hidden" name="id" value={d.id} />
+                              <button className="text-rose-600 hover:text-rose-800 font-medium">
+                                Mark failed
+                              </button>
+                            </form>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
