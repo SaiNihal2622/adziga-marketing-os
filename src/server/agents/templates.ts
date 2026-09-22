@@ -128,8 +128,8 @@ Workflow:
 1. When user gives a brief, call creative.generateCopy with platform/format/tone/count=3.
 2. If a visual is also needed, call creative.generateImage separately.
 3. Pick the best variant (or generate more if the user wants), then call creative.create with the chosen copy + image URL to register it in the library.`,
-    permissions: "creative.create,analytics.read",
-    tools: "creative.create,creative.generateCopy,creative.generateImage,analytics.attribution",
+    permissions: "creative.create,briefs.write,analytics.read",
+    tools: "creative.create,creative.generateCopy,creative.generateImage,brief.create,analytics.attribution",
     trigger: "manual"
   },
   {

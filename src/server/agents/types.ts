@@ -486,6 +486,64 @@ export const creativeTools: ToolSpec[] = [
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
+// Brief management tools (used by Content Agent to dispatch work to designers)
+// ──────────────────────────────────────────────────────────────────────────
+
+export const briefTools: ToolSpec[] = [
+  {
+    name: "brief.create",
+    description:
+      "Create a designer brief — a structured work item for a designer or freelancer to pick up. Returns the briefId so you can link creatives to it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        brief: { type: "string", description: "What to produce. Markdown OK." },
+        format: { type: "string", enum: ["IMAGE", "VIDEO", "CAROUSEL", "STORY", "REEL", "TEXT", "UGC", "AUDIO"] },
+        platform: { type: "string", enum: ["META", "GOOGLE", "WHATSAPP", "EMAIL", "INFLUENCER", "LINKEDIN", "INSTAGRAM", "YOUTUBE", "GENERIC"] },
+        priority: { type: "string", enum: ["LOW", "NORMAL", "HIGH", "URGENT"], default: "NORMAL" },
+        dueDate: { type: "string", description: "ISO date string" },
+        referenceUrls: { type: "array", items: { type: "string" } },
+        copyDirection: { type: "string" },
+        campaignId: { type: "string" },
+        clientId: { type: "string" }
+      },
+      required: ["title", "brief", "format", "platform"]
+    },
+    requires: "briefs.write",
+    handler: async (input, ctx) => {
+      if (!ctx.can("briefs.write")) return { ok: false, error: "permission denied: briefs.write" };
+      const brief = await ctx.prisma.brief.create({
+        data: {
+          orgId: ctx.orgId,
+          clientId: input.clientId ? String(input.clientId) : null,
+          campaignId: input.campaignId ? String(input.campaignId) : null,
+          title: String(input.title),
+          brief: String(input.brief),
+          format: String(input.format),
+          platform: String(input.platform),
+          priority: String(input.priority ?? "NORMAL"),
+          dueDate: input.dueDate ? new Date(String(input.dueDate)) : null,
+          referenceUrls: Array.isArray(input.referenceUrls) ? input.referenceUrls.map(String) : [],
+          copyDirection: input.copyDirection ? String(input.copyDirection) : null,
+          createdById: ctx.invokedBy === "system" ? ctx.agentId : ctx.invokedBy,
+          status: "OPEN"
+        }
+      });
+      return {
+        ok: true,
+        output: { briefId: brief.id, title: brief.title, status: brief.status },
+        recordAction: {
+          type: "brief.create",
+          summary: `Created designer brief "${brief.title}"`,
+          payload: { briefId: brief.id, format: brief.format, platform: brief.platform }
+        }
+      };
+    }
+  }
+];
+
+// ──────────────────────────────────────────────────────────────────────────
 // Lead management tools
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -665,6 +723,7 @@ export const ALL_TOOLS: ToolSpec[] = [
   ...campaignTools,
   ...budgetTools,
   ...creativeTools,
+  ...briefTools,
   ...leadTools,
   ...reportTools,
   ...competitorTools

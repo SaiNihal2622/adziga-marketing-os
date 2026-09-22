@@ -10,6 +10,8 @@ export const Role = {
   SALES: "SALES",
   FINANCE: "FINANCE",
   CONTENT: "CONTENT",
+  DESIGNER: "DESIGNER",
+  FREELANCER: "FREELANCER",
   CLIENT_ADMIN: "CLIENT_ADMIN",
   CLIENT_MEMBER: "CLIENT_MEMBER"
 } as const;
@@ -26,6 +28,8 @@ export const ROLE_LABELS: Record<Role, string> = {
   SALES: "Sales",
   FINANCE: "Finance",
   CONTENT: "Content Team",
+  DESIGNER: "Designer",
+  FREELANCER: "Freelancer",
   CLIENT_ADMIN: "Client Admin",
   CLIENT_MEMBER: "Client Member"
 };
@@ -418,7 +422,9 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
   ],
   SALES: ["leads:*", "clients:read", "ai:use", "requests:*"],
   FINANCE: ["billing:*", "invoices:*", "reports:read", "analytics:read"],
-  CONTENT: ["creatives:*", "campaigns:read"],
+  CONTENT: ["creatives:*", "campaigns:read", "briefs:write"],
+  DESIGNER: ["creatives:read", "creatives:write", "briefs:read", "briefs:write", "campaigns:read"],
+  FREELANCER: ["creatives:read", "creatives:write", "briefs:read", "briefs:write"],
   CLIENT_ADMIN: [
     "client.dashboard",
     "client.campaigns",

@@ -432,3 +432,55 @@ export const generateImageSchema = z.object({
   aspectRatio: z.enum(["1:1", "4:5", "9:16", "16:9"]).default("1:1")
 });
 
+// â”€â”€â”€ Designer briefs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export const briefStatusSchema = z.enum([
+  "OPEN",
+  "CLAIMED",
+  "IN_PROGRESS",
+  "IN_REVIEW",
+  "DELIVERED",
+  "ARCHIVED"
+]);
+
+export const briefPrioritySchema = z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]);
+
+export const createBriefSchema = z.object({
+  clientId: cuidSchema.optional(),
+  campaignId: cuidSchema.optional(),
+  title: z.string().min(1).max(200),
+  brief: z.string().min(10).max(8000),
+  format: creativeFormatSchema,
+  platform: creativePlatformSchema,
+  priority: briefPrioritySchema.default("NORMAL"),
+  dueDate: z.string().datetime().optional().nullable(),
+  referenceUrls: z.array(z.string().url()).max(20).default([]),
+  copyDirection: z.string().max(2000).optional(),
+  assigneeId: cuidSchema.optional()
+});
+
+export const updateBriefSchema = createBriefSchema.partial();
+
+export const listBriefsSchema = z.object({
+  clientId: cuidSchema.optional(),
+  campaignId: cuidSchema.optional(),
+  status: briefStatusSchema.optional(),
+  assigneeId: cuidSchema.optional(),
+  priority: briefPrioritySchema.optional(),
+  q: z.string().max(200).optional(),
+  take: z.coerce.number().int().min(1).max(200).default(50),
+  cursor: z.string().optional()
+});
+
+export const claimBriefSchema = z.object({});
+
+export const deliverBriefSchema = z.object({
+  assetUrl: z.string().url(),
+  note: z.string().max(2000).optional()
+});
+
+export const transitionBriefSchema = z.object({
+  to: briefStatusSchema,
+  note: z.string().max(2000).optional()
+});
+
