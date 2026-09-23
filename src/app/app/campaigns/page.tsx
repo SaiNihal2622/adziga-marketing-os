@@ -9,6 +9,7 @@ import { PageHeader } from "@/app/app/_components/page-header";
 import { Badge, Button, Card, EmptyState, Kpi, SectionHeader } from "@/app/app/_components/ui";
 import { fmtINR, fmtNum, fmtRelative } from "@/lib/format";
 import { PLATFORM_LABELS } from "@/lib/constants";
+import { RecomputeHealthButton } from "./recompute-health-button";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,13 @@ export default async function CampaignsPage({
   const cpl_ = totalLeads > 0 ? totalSpend / totalLeads : 0;
   const roas_ = totalSpend > 0 ? totalRevenue / totalSpend : 0;
 
+  // Sprint 16b — health tier breakdown for the filtered scope
+  const healthCounts = {
+    healthy: campaigns.filter((c) => c.health === "Healthy").length,
+    atRisk: campaigns.filter((c) => c.health === "At Risk").length,
+    critical: campaigns.filter((c) => c.health === "Critical").length
+  };
+
   const STATUS_OPTIONS: Array<{ key?: string; label: string }> = [
     { label: "All" },
     { key: "DRAFT", label: "Draft" },
@@ -71,19 +79,45 @@ export default async function CampaignsPage({
         subtitle="Multi-channel execution. Lifecycle: Draft → Internal review → Client approval → Ready → Active → Paused → Completed."
         breadcrumbs={[{ label: "Campaigns" }]}
         right={
-          <Link href="/app/campaigns/new">
-            <Button>+ New campaign</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <RecomputeHealthButton />
+            <Link href="/app/campaigns/new">
+              <Button>+ New campaign</Button>
+            </Link>
+          </div>
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
         <Kpi label="Total campaigns" value={campaigns.length.toString()} hint={`${activeCampaigns} active`} />
         <Kpi label="Spend" value={fmtINR(totalSpend)} tone="brand" />
         <Kpi label="Leads" value={fmtNum(totalLeads)} hint={`${fmtINR(cpl_)} CPL`} />
         <Kpi label="Revenue" value={fmtINR(totalRevenue)} />
         <Kpi label="ROAS" value={`${roas_.toFixed(2)}×`} tone={roas_ >= 2 ? "success" : "neutral"} />
       </div>
+
+      {/* Sprint 16b — health-tier strip */}
+      <Card padding="sm" className="mb-6">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-[11px] uppercase tracking-wide text-ink-500 font-semibold">Health</span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            {healthCounts.healthy} healthy
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            {healthCounts.atRisk} at risk
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+            {healthCounts.critical} critical
+          </span>
+          <span className="text-xs text-ink-500">
+            Composite score from spend pacing, ROAS vs peers, lead trend, anomaly detector, CTR floor. Click
+            "Recompute health" to refresh.
+          </span>
+        </div>
+      </Card>
 
       <Card padding="sm" className="mb-5">
         <div className="flex flex-wrap items-center gap-1.5">

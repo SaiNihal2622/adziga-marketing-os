@@ -12,6 +12,8 @@ import { Badge, Button, Card, Kpi, SectionHeader, StatRow } from "@/app/app/_com
 import { fmtINR, fmtNum, fmtPct, fmtDate, fmtRelative, ctr } from "@/lib/format";
 import { PLATFORM_LABELS, CAMPAIGN_STATUS_LABELS } from "@/lib/constants";
 import { CampaignService } from "@/server/services/campaign-service";
+import { computeCampaignHealth } from "@/server/services/campaign-health";
+import { RecomputeCampaignHealthButton } from "./_recompute-campaign-health";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +127,9 @@ export default async function CampaignDetail({ params }: { params: { id: string 
         <Kpi label="Clicks" value={fmtNum(campaign.clicks)} />
         <Kpi label="CTR" value={fmtPct(ctrPct)} />
       </div>
+
+      {/* Sprint 16b — Composite health panel with signal breakdown */}
+      <HealthPanel campaignId={campaign.id} fallbackTier={campaign.health} />
 
       {/* Workflow */}
       {nextStates.length > 0 && (
@@ -340,4 +345,71 @@ function HealthBadge({ health }: { health: string }) {
   };
   const m = map[health] ?? { variant: "neutral" };
   return <Badge variant={m.variant} dot>{health}</Badge>;
+}
+
+// Sprint 16b — composite health panel. Renders the live score signals
+// breakdown for this campaign. Stays async (server) so we don't have to
+// hydrate an entire result back into the client; only the recompute
+// button needs a client component.
+async function HealthPanel({ campaignId, fallbackTier }: { campaignId: string; fallbackTier: string | null }) {
+  const result = await computeCampaignHealth(campaignId);
+  if (!result) return null;
+
+  const tierVariant =
+    result.tier === "Healthy"
+      ? "bg-emerald-50 text-emerald-700"
+      : result.tier === "At Risk"
+        ? "bg-amber-50 text-amber-700"
+        : "bg-rose-50 text-rose-700";
+
+  return (
+    <Card padding="lg" className="mb-8">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-[15px] font-semibold tracking-tight text-ink-900">Health</h3>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${tierVariant}`}>
+              {result.tier}
+            </span>
+            <span className="font-mono font-semibold text-ink-900 text-sm">{result.score}/100</span>
+            {fallbackTier && fallbackTier !== result.tier && (
+              <span className="text-[11px] text-ink-500 font-mono">stored: {fallbackTier}</span>
+            )}
+          </div>
+          <p className="text-xs text-ink-500 mt-1">
+            Composite score from spend pacing (30), ROAS vs peer median (25), lead trend (20),
+            anomaly detector (15), CTR vs platform floor (10).
+          </p>
+        </div>
+        <RecomputeCampaignHealthButton campaignId={campaignId} />
+      </div>
+
+      <div className="space-y-2.5">
+        {result.signals.map((s) => {
+          const pct = (s.score / s.max) * 100;
+          const barClass =
+            pct >= 80
+              ? "bg-emerald-500"
+              : pct >= 50
+                ? "bg-amber-500"
+                : "bg-rose-500";
+          return (
+            <div key={s.key} className="grid grid-cols-[140px_1fr_72px] items-center gap-3">
+              <div className="text-xs text-ink-700">{s.label}</div>
+              <div className="bg-ink-100 rounded-full h-2 overflow-hidden">
+                <div className={`${barClass} h-full rounded-full transition-all`} style={{ width: `${pct}%` }} />
+              </div>
+              <div className="text-xs font-mono text-ink-700 text-right">
+                {s.score}/{s.max}
+                <span className="block text-[10px] text-ink-500 truncate" title={s.detail}>{s.detail}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="text-[10px] text-ink-400 mt-4 font-mono">
+        Computed {new Date(result.computedAt).toLocaleString()}. Click Recompute to refresh and persist.
+      </div>
+    </Card>
+  );
 }

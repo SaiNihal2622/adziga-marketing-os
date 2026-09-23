@@ -112,23 +112,31 @@ export default async function WebhooksPage({
         subtitle="Every incoming webhook (Meta leadgen, Razorpay, Meta insights, manual ingestion) is recorded here. Use the status filter to surface what's stuck or failed."
         breadcrumbs={[{ label: "Admin", href: "/app/admin" }, { label: "Webhooks" }]}
         right={
-          <div className="flex items-center gap-1 text-xs">
-            <span className="text-ink-500 mr-1">Provider:</span>
+          <div className="flex items-center gap-2">
             <Link
-              href={`?${statusFilter ? `status=${statusFilter}` : ""}`}
-              className={`px-2 py-1 rounded ${!providerFilter ? "bg-ink-900 text-white" : "bg-ink-100 hover:bg-ink-200"}`}
+              href="/app/admin/webhooks/dlq"
+              className="px-2 py-1 rounded text-xs bg-rose-50 text-rose-700 hover:bg-rose-100"
             >
-              All
+              Dead-letter queue →
             </Link>
-            {distinctProviders.map((p) => (
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-ink-500 mr-1">Provider:</span>
               <Link
-                key={p.provider}
-                href={`?provider=${p.provider}${statusFilter ? `&status=${statusFilter}` : ""}`}
-                className={`px-2 py-1 rounded ${providerFilter === p.provider ? "bg-ink-900 text-white" : "bg-ink-100 hover:bg-ink-200"}`}
+                href={`?${statusFilter ? `status=${statusFilter}` : ""}`}
+                className={`px-2 py-1 rounded ${!providerFilter ? "bg-ink-900 text-white" : "bg-ink-100 hover:bg-ink-200"}`}
               >
-                {p.provider}
+                All
               </Link>
-            ))}
+              {distinctProviders.map((p) => (
+                <Link
+                  key={p.provider}
+                  href={`?provider=${p.provider}${statusFilter ? `&status=${statusFilter}` : ""}`}
+                  className={`px-2 py-1 rounded ${providerFilter === p.provider ? "bg-ink-900 text-white" : "bg-ink-100 hover:bg-ink-200"}`}
+                >
+                  {p.provider}
+                </Link>
+              ))}
+            </div>
           </div>
         }
       />

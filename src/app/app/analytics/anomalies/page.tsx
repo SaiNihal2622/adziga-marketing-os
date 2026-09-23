@@ -8,6 +8,7 @@ import { PageHeader } from "../../_components/page-header";
 import { Card, Kpi, SectionHeader, Badge } from "../../_components/ui";
 import { fmtINR, fmtNum, fmtPct } from "@/lib/format";
 import Link from "next/link";
+import { SyncApprovalsButton } from "./sync-button";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +95,7 @@ export default async function AnomaliesPage({
         <Link href="/app/admin/anomalies/thresholds" className="text-xs text-brand-600 hover:underline">
           Tune thresholds →
         </Link>
+        <SyncApprovalsButton />
       </div>
 
       <div className="space-y-3">

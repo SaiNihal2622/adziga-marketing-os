@@ -57,6 +57,9 @@ export default async function ClientDetail({ params }: { params: { id: string } 
             <Link href={`/app/clients/${client.id}/cohorts`}>
               <Button variant="outline">Cohorts</Button>
             </Link>
+            <Link href={`/app/clients/${client.id}/ltv`}>
+              <Button variant="outline">LTV</Button>
+            </Link>
             <Link href={`/app/clients/${client.id}/command-center`}>
               <Button variant="outline">Command Center</Button>
             </Link>
@@ -82,6 +85,9 @@ export default async function ClientDetail({ params }: { params: { id: string } 
 
       {/* Sprint 10d — embedded cohort retention strip */}
       <CohortStrip clientId={client.id} />
+
+      {/* Sprint 16c — LTV strip + deep link to per-client LTV page */}
+      <LtvStrip orgId={session.orgId} clientId={client.id} />
 
       {/* Campaigns + Account side panel */}
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 mb-8">
@@ -402,4 +408,77 @@ function CampaignStatusBadge({ status }: { status: string }) {
   };
   const m = map[status] ?? { variant: "neutral", label: status };
   return <Badge variant={m.variant} dot>{m.label}</Badge>;
+}
+
+// Sprint 16c — embedded LTV strip on client detail. Pulls the LTV report
+// scoped to this client and renders a compact "p50 LTV / repeat share /
+// per-customer-per-month" strip with a "full LTV report →" link.
+async function LtvStrip({ orgId, clientId }: { orgId: string; clientId: string }) {
+  const { LtvService } = await import("@/server/services/ltv-service");
+  const report = await LtvService.report(orgId, clientId, 365);
+
+  if (report.overall.n === 0) return null;
+
+  const ltvCacRatio =
+    report.overall.p50 > 0 && (await cacForClient(orgId, clientId)) > 0
+      ? report.overall.p50 / (await cacForClient(orgId, clientId))
+      : 0;
+
+  return (
+    <Card padding="sm" className="mb-6">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] uppercase tracking-wide text-ink-500 font-semibold">Customer LTV</span>
+          <span className="text-[10px] text-ink-400 font-mono">
+            {report.overall.n} customers · last 12 months
+          </span>
+        </div>
+        <span className="inline-flex items-baseline gap-1 px-2.5 py-1 rounded bg-emerald-50">
+          <span className="text-[10px] uppercase text-emerald-700 tracking-wide font-semibold">p50</span>
+          <span className="text-sm font-semibold text-emerald-900 font-mono tabular-nums">
+            {fmtINR(report.overall.p50)}
+          </span>
+        </span>
+        <span className="inline-flex items-baseline gap-1 px-2.5 py-1 rounded bg-ink-100">
+          <span className="text-[10px] uppercase text-ink-700 tracking-wide font-semibold">p90</span>
+          <span className="text-sm font-semibold text-ink-900 font-mono tabular-nums">
+            {fmtINR(report.overall.p90)}
+          </span>
+        </span>
+        <span className="inline-flex items-baseline gap-1 px-2.5 py-1 rounded bg-ink-100">
+          <span className="text-[10px] uppercase text-ink-700 tracking-wide font-semibold">Repeat</span>
+          <span className="text-sm font-semibold text-ink-900 font-mono tabular-nums">
+            {(report.overall.repeatShare * 100).toFixed(0)}%
+          </span>
+        </span>
+        <span className="inline-flex items-baseline gap-1 px-2.5 py-1 rounded bg-ink-100">
+          <span className="text-[10px] uppercase text-ink-700 tracking-wide font-semibold">LTV/CAC</span>
+          <span className={`text-sm font-semibold font-mono tabular-nums ${ltvCacRatio >= 3 ? "text-emerald-700" : ltvCacRatio >= 1 ? "text-ink-900" : "text-rose-700"}`}>
+            {ltvCacRatio > 0 ? `${ltvCacRatio.toFixed(1)}×` : "—"}
+          </span>
+        </span>
+        <span className="inline-flex items-baseline gap-1 px-2.5 py-1 rounded bg-ink-100">
+          <span className="text-[10px] uppercase text-ink-700 tracking-wide font-semibold">Rev/cust/mo</span>
+          <span className="text-sm font-semibold text-ink-900 font-mono tabular-nums">
+            {fmtINR(report.overall.avgRevenuePerCustomerPerMonth)}
+          </span>
+        </span>
+        <Link href={`/app/clients/${clientId}/ltv`} className="ml-auto text-xs text-brand-600 hover:underline">
+          Full LTV report →
+        </Link>
+      </div>
+    </Card>
+  );
+}
+
+// Helper — recompute org-wide CAC for this client. Defined here so the
+// LtvStrip above can stay short; reads only campaigns for the client.
+async function cacForClient(orgId: string, clientId: string): Promise<number> {
+  const rows = await prisma.campaign.findMany({
+    where: { orgId, clientId },
+    select: { spent: true, customers: true }
+  });
+  const totalSpend = rows.reduce((s, c) => s + c.spent, 0);
+  const totalCustomers = rows.reduce((s, c) => s + Number(c.customers), 0);
+  return totalCustomers > 0 ? totalSpend / totalCustomers : 0;
 }

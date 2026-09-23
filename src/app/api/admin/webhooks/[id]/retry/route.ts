@@ -16,13 +16,31 @@ export const POST = authedRoute(null, async (ctx, _body, params) => {
   const delivery = await prisma.webhookDelivery.findUnique({ where: { id: params.id } });
   if (!delivery) return { error: "delivery not found" } as any;
 
-  if (delivery.attempts >= 5) {
-    // Move to dead-letter queue.
+  if (delivery.attempts >= 5 && delivery.status !== "dead_letter") {
+    // First time we hit the cap — move to DLQ.
     await prisma.webhookDelivery.update({
       where: { id: delivery.id },
       data: { status: "dead_letter", deadLetteredAt: new Date(), lastAttemptAt: new Date() }
     });
     return { error: "max retry attempts (5) reached; moved to dead-letter queue" } as any;
+  }
+
+  // If already dead-lettered, a manual admin retry is allowed — reset the
+  // attempt counter so we get a fresh budget for the next round.
+  if (delivery.status === "dead_letter") {
+    await prisma.webhookDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        status: "processing",
+        attempts: 0,
+        error: null
+      }
+    });
+    // Hydrate the in-memory delivery so the rest of the handler sees
+    // attempts=0 and status=processing.
+    delivery.attempts = 0;
+    delivery.status = "processing";
+    delivery.error = null;
   }
   if (delivery.status === "processed") {
     return { ok: true, skipped: true, reason: "already processed" };
