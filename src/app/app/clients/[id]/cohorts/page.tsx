@@ -276,6 +276,105 @@ export default async function CohortsPage({
           )}
         </>
       )}
+
+      {/* Sprint 19a — cohort LTV drill-down */}
+      <SectionHeader
+        title="Cohort LTV"
+        description="Cumulative revenue per acquisition month. Older cohorts have had more time to convert and generate repeat purchases; the right-most cohort only contains initial-revenue customers."
+      />
+      <Card padding="lg">
+        <CohortLtvCard orgId={session.orgId} clientId={params.id} months={months} />
+      </Card>
+    </div>
+  );
+}
+
+// Sprint 19a — sub-component that calls CohortService.cohortRevenueLtv.
+// Rendered as a horizontal bar chart: one bar per cohort month, with
+// size = cumulative revenue, hover detail = per-customer avg + repeat share.
+async function CohortLtvCard({ orgId, clientId, months }: { orgId: string; clientId: string; months: number }) {
+  const ltv = await CohortService.cohortRevenueLtv(orgId, clientId, months);
+
+  if (ltv.cohortSizes.every((s) => s === 0)) {
+    return (
+      <div className="py-6 text-center text-xs text-ink-500">
+        No customer-acquisition data in this window. Acquire customers in this period to see cohort LTV.
+      </div>
+    );
+  }
+
+  const maxRev = Math.max(...ltv.cumulativeRevenuePerCohort, 0);
+
+  return (
+    <div>
+      {ltv.note && (
+        <div className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">{ltv.note}</div>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div className="rounded border border-ink-200 bg-white p-3">
+          <div className="text-[10px] uppercase tracking-wide text-ink-500 font-semibold">Total revenue (window)</div>
+          <div className="text-xl font-semibold text-ink-900 mt-1 font-mono tabular-nums">{fmtINR(ltv.totalRevenue)}</div>
+        </div>
+        <div className="rounded border border-ink-200 bg-white p-3">
+          <div className="text-[10px] uppercase tracking-wide text-ink-500 font-semibold">Customers acquired</div>
+          <div className="text-xl font-semibold text-ink-900 mt-1 font-mono tabular-nums">
+            {fmtNum(ltv.cohortSizes.reduce((s, v) => s + v, 0))}
+          </div>
+        </div>
+        <div className="rounded border border-ink-200 bg-white p-3">
+          <div className="text-[10px] uppercase tracking-wide text-ink-500 font-semibold">Avg revenue / customer</div>
+          <div className="text-xl font-semibold text-ink-900 mt-1 font-mono tabular-nums">
+            {(() => {
+              const totalCust = ltv.cohortSizes.reduce((s, v) => s + v, 0);
+              return totalCust > 0 ? fmtINR(ltv.totalRevenue / totalCust) : "—";
+            })()}
+          </div>
+        </div>
+        <div className="rounded border border-ink-200 bg-white p-3">
+          <div className="text-[10px] uppercase tracking-wide text-ink-500 font-semibold">Best cohort</div>
+          <div className="text-xl font-semibold text-ink-900 mt-1 font-mono tabular-nums">
+            {(() => {
+              let bestIdx = -1;
+              let best = 0;
+              for (let i = 0; i < ltv.cumulativeRevenuePerCohort.length; i++) {
+                if (ltv.cumulativeRevenuePerCohort[i] > best) {
+                  best = ltv.cumulativeRevenuePerCohort[i];
+                  bestIdx = i;
+                }
+              }
+              return bestIdx >= 0 ? ltv.cohortLabels[bestIdx] : "—";
+            })()}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        {ltv.cohortLabels.map((label, i) => {
+          const rev = ltv.cumulativeRevenuePerCohort[i];
+          const pct = maxRev > 0 ? (rev / maxRev) * 100 : 0;
+          const pc = ltv.cohortSizes[i];
+          const per = ltv.cumulativeRevenuePerCustomer[i];
+          const rep = ltv.repeatShareByCohort[i];
+          return (
+            <div key={label} className="grid grid-cols-[100px_1fr_120px_90px] items-center gap-3">
+              <div className="text-xs font-mono text-ink-700">{label}</div>
+              <div className="bg-ink-100 rounded-full h-3 overflow-hidden" title={`${fmtINR(rev)} total`}>
+                <div
+                  className="bg-emerald-500 h-full rounded-full"
+                  style={{ width: `${Math.max(2, pct)}%` }}
+                />
+              </div>
+              <div className="text-right text-xs font-mono text-ink-900 tabular-nums">
+                {fmtINR(rev)}
+                <div className="text-[10px] text-ink-500">n={pc} · {fmtINR(per)}/cust</div>
+              </div>
+              <div className="text-right text-[11px] text-ink-700 tabular-nums">
+                {rep > 0 ? `${(rep * 100).toFixed(0)}% repeat` : <span className="text-ink-400">—</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

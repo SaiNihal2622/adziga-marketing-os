@@ -201,12 +201,56 @@ export const AdSpendIngestionService = {
     const token = `adz_ing_${orgId.slice(0, 8)}_${crypto.randomBytes(16).toString("hex")}`;
     const org = await prisma.organization.findUnique({ where: { id: orgId } });
     const meta = (org?.metadata ? JSON.parse(org.metadata) : {}) as Record<string, unknown>;
+    const previous = typeof meta.ingestionToken === "string" ? meta.ingestionToken : null;
+    const createdAt = new Date().toISOString();
     meta.ingestionToken = token;
+    meta.ingestionTokenCreatedAt = createdAt;
+    if (previous) {
+      meta.ingestionTokenPrevious = previous;
+      meta.ingestionTokenRevokedAt = createdAt;
+    }
     await prisma.organization.update({
       where: { id: orgId },
       data: { metadata: JSON.stringify(meta) }
     });
     return token;
+  },
+
+  async revokeIngestionToken(orgId: string): Promise<boolean> {
+    const org = await prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org?.metadata) return false;
+    const meta = JSON.parse(org.metadata) as Record<string, unknown>;
+    const previous = typeof meta.ingestionToken === "string" ? meta.ingestionToken : null;
+    if (!previous) return false;
+    meta.ingestionToken = null;
+    meta.ingestionTokenRevokedAt = new Date().toISOString();
+    meta.ingestionTokenPrevious = previous;
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { metadata: JSON.stringify(meta) }
+    });
+    return true;
+  },
+
+  async getIngestionTokenInfo(orgId: string): Promise<{
+    hasToken: boolean;
+    createdAt: string | null;
+    previousRevokedAt: string | null;
+    previousTokenFingerprint: string | null;
+  }> {
+    const org = await prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org?.metadata) {
+      return { hasToken: false, createdAt: null, previousRevokedAt: null, previousTokenFingerprint: null };
+    }
+    const meta = JSON.parse(org.metadata) as Record<string, unknown>;
+    const hasToken = typeof meta.ingestionToken === "string";
+    const previous = typeof meta.ingestionTokenPrevious === "string" ? (meta.ingestionTokenPrevious as string) : null;
+    return {
+      hasToken,
+      createdAt: typeof meta.ingestionTokenCreatedAt === "string" ? (meta.ingestionTokenCreatedAt as string) : null,
+      previousRevokedAt: typeof meta.ingestionTokenRevokedAt === "string" ? (meta.ingestionTokenRevokedAt as string) : null,
+      previousTokenFingerprint: previous ? `${previous.slice(0, 16)}…` : null
+    };
   },
 
   async verifyIngestionToken(orgId: string, presented: string): Promise<boolean> {

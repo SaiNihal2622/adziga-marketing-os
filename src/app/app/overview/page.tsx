@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import { fmtINR, fmtNum, fmtPct } from "@/lib/format";
 import { isOperatorRole } from "./_lib";
+import { WebhookHealthService } from "@/server/services/webhook-health";
+import { AgentCostAlertService } from "@/server/services/agent-cost";
+import { SystemAlertsTile } from "./_system-alerts-tile";
 import { PageHeader } from "../_components/page-header";
 import { Sparkline, LineChart, BarChart, DonutChart, FunnelChart } from "../_components/charts";
 import { EmptyState } from "../_components/empty-state";
@@ -403,6 +406,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: { r
               </ul>
             </div>
           )}
+          {/* Sprint 19b — system-alerts tile (webhook + cost) */}
+          <SystemAlertsTile orgId={session.orgId} />
         </div>
       )}
 

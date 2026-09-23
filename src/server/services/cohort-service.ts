@@ -365,5 +365,84 @@ export const CohortService = {
       caveat: null,
       computedAt: new Date().toISOString()
     };
+  },
+
+  /**
+   * Sprint 19a — revenue by acquisition month. For each monthly cohort
+   * of Customer.acquiredAt, return the cumulative revenue generated
+   * (initial Customer.revenue + repeat Revenue.amount) per cohort.
+   *
+   * Power user view: "older cohorts should earn more".
+   */
+  async cohortRevenueLtv(
+    orgId: string,
+    clientId?: string,
+    months: number = 6
+  ): Promise<{
+    months: number;
+    cohortLabels: string[];
+    cohortSizes: number[];
+    cumulativeRevenuePerCohort: number[];   // [oldest .. newest]
+    cumulativeRevenuePerCustomer: number[]; // same shape, averaged
+    repeatShareByCohort: number[];           // 0..1
+    totalRevenue: number;
+    note?: string;
+    computedAt: string;
+  }> {
+    // Cohort labels same as leadToCustomerCohort (oldest left, newest right).
+    const now = new Date();
+    const labels: string[] = [];
+    const sizes: number[] = [];
+    const cumulative: number[] = [];
+    const perCustomer: number[] = [];
+    const repeatShare: number[] = [];
+
+    let totalRevenue = 0;
+
+    for (let i = months - 1; i >= 0; i--) {
+      const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const next = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      const label = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`;
+
+      const customers = await prisma.customer.findMany({
+        where: {
+          orgId,
+          ...(clientId ? { clientId } : {}),
+          acquiredAt: { gte: start, lt: next }
+        },
+        include: {
+          revenues: { select: { amount: true } }
+        }
+      });
+
+      const n = customers.length;
+      const cohortRev = customers.reduce((s, c) => s + c.revenue, 0);
+      const repeatRev = customers.reduce((s, c) => s + c.revenues.reduce((x, r) => x + r.amount, 0), 0);
+      const total = cohortRev + repeatRev;
+      const withRepeats = customers.filter((c) => c.revenues.length > 0).length;
+
+      labels.push(label);
+      sizes.push(n);
+      cumulative.push(Math.round(total));
+      perCustomer.push(n > 0 ? Math.round(total / n) : 0);
+      repeatShare.push(n > 0 ? withRepeats / n : 0);
+      totalRevenue += total;
+    }
+
+    const note = months < 3
+      ? "Need at least 3 monthly cohorts to spot revenue trends. Check back next month."
+      : undefined;
+
+    return {
+      months,
+      cohortLabels: labels,
+      cohortSizes: sizes,
+      cumulativeRevenuePerCohort: cumulative,
+      cumulativeRevenuePerCustomer: perCustomer,
+      repeatShareByCohort: repeatShare,
+      totalRevenue,
+      note,
+      computedAt: new Date().toISOString()
+    };
   }
 };
