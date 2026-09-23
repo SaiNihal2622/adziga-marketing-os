@@ -17,7 +17,12 @@ export const POST = authedRoute(null, async (ctx, _body, params) => {
   if (!delivery) return { error: "delivery not found" } as any;
 
   if (delivery.attempts >= 5) {
-    return { error: "max retry attempts (5) reached" } as any;
+    // Move to dead-letter queue.
+    await prisma.webhookDelivery.update({
+      where: { id: delivery.id },
+      data: { status: "dead_letter", deadLetteredAt: new Date(), lastAttemptAt: new Date() }
+    });
+    return { error: "max retry attempts (5) reached; moved to dead-letter queue" } as any;
   }
   if (delivery.status === "processed") {
     return { ok: true, skipped: true, reason: "already processed" };

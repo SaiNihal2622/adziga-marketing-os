@@ -133,11 +133,12 @@ export default async function WebhooksPage({
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <Kpi label="Total (100 recent)" value={totals.total} />
         <Kpi label="Pending" value={totals.pending} tone={totals.pending > 5 ? "accent" : "neutral"} />
         <Kpi label="Processed" value={totals.processed} tone="success" />
         <Kpi label="Failed" value={totals.failed} tone={totals.failed > 0 ? "accent" : "neutral"} />
+        <Kpi label="Dead-letter" value={deliveries.filter((d) => d.status === "dead_letter").length} tone="accent" hint="exceeded 5 retries" />
       </div>
 
       {/* Status filter */}

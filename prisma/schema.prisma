@@ -1482,11 +1482,14 @@ model WebhookDelivery {
   endpoint    String   // /api/webhooks/...
   signature   String?
   payload     String
-  status      String   @default("received") // received | processing | processed | failed
+  status      String   @default("received") // received | processing | processed | failed | dead_letter
   error       String?
   attempts    Int      @default(0)
   receivedAt  DateTime @default(now())
   processedAt DateTime?
+  // Sprint 15c — moved to dead-letter queue after max attempts.
+  deadLetteredAt DateTime?
+  lastAttemptAt DateTime?
 
   @@index([provider, receivedAt])
   @@index([status])

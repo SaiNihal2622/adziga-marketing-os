@@ -152,6 +152,9 @@ export default async function AuditPage({
           {(q || actionFilter || entityFilter) && (
             <Link href={`/app/audit?days=${days}`} className="btn btn-ghost">Clear</Link>
           )}
+          <Link href={`/api/audit/export?days=${days}`} className="btn btn-outline ml-auto" target="_blank">
+            ↓ Export CSV
+          </Link>
         </form>
       </Card>
 

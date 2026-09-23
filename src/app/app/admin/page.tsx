@@ -64,6 +64,7 @@ export default async function AdminPage() {
             <Link href="/app/admin/integrations"><Button variant="outline">Integrations</Button></Link>
             <Link href="/app/audit"><Button variant="outline">Audit</Button></Link>
             <Link href="/app/admin/webhooks"><Button variant="outline">Webhooks</Button></Link>
+            <Link href="/app/admin/agents"><Button variant="outline">Agents</Button></Link>
           </div>
         }
       />
