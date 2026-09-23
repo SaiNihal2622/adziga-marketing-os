@@ -13,6 +13,9 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
+import { WebhookHealthService } from "@/server/services/webhook-health";
+import { HealthBanner } from "./_health-banner";
+import { HealthCheckButton } from "./_health-check-button";
 
 async function markProcessed(formData: FormData) {
   "use server";
@@ -63,9 +66,12 @@ export default async function WebhooksPage({
 }: {
   searchParams: { provider?: string; status?: string };
 }) {
-  await requireRole([Role.FOUNDER, Role.ADMIN]);
+  const sessionInfo = await requireRole([Role.FOUNDER, Role.ADMIN]);
   const providerFilter = searchParams.provider ?? "";
   const statusFilter = searchParams.status ?? "";
+
+  // Sprint 17a — load stored webhook-health alerts (set by /api/admin/webhooks/health).
+  const storedAlerts = await WebhookHealthService.loadStoredAlerts(sessionInfo.orgId);
 
   const where: any = {};
   if (providerFilter) where.provider = providerFilter;
@@ -140,6 +146,12 @@ export default async function WebhooksPage({
           </div>
         }
       />
+
+      {/* Sprint 17a — webhook health banner + run check button */}
+      <HealthBanner alerts={storedAlerts} />
+      <div className="flex items-center justify-end text-xs">
+        <HealthCheckButton />
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <Kpi label="Total (100 recent)" value={totals.total} />

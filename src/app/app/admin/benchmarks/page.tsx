@@ -8,15 +8,18 @@ import { PageHeader } from "../../_components/page-header";
 import { Card, Kpi, SectionHeader } from "../../_components/ui";
 import { fmtNum } from "@/lib/format";
 import { BenchmarkEditor } from "./_editor";
+import { OrgBenchmarkService } from "@/server/services/org-benchmark";
+import { OrgBenchmarkEditor } from "./_org-editor";
 
 export const dynamic = "force-dynamic";
 
 export default async function BenchmarksPage() {
-  await requireRole([Role.FOUNDER, Role.ADMIN]);
+  const sessionInfo = await requireRole([Role.FOUNDER, Role.ADMIN]);
   const benchmarks = await prisma.industryBenchmark.findMany({
     orderBy: [{ industry: "asc" }, { channel: "asc" }],
     take: 200
   });
+  const overrides = await OrgBenchmarkService.listOverrides(sessionInfo.orgId);
 
   const distinctIndustries = Array.from(new Set(benchmarks.map((b) => b.industry)));
   const distinctChannels = Array.from(new Set(benchmarks.map((b) => b.channel)));
@@ -35,6 +38,19 @@ export default async function BenchmarksPage() {
         <Kpi label="Channels" value={distinctChannels.length} />
         <Kpi label="Sample (median)" value={fmtNum(median(benchmarks.map((b) => b.sampleSize)))} hint="median sampleSize across rows" />
       </div>
+
+      {/* Sprint 17c — per-org override surface */}
+      <SectionHeader
+        title="Org overrides"
+        description="Per-org overrides take precedence over the global IndustryBenchmark table. Use these when your vertical needs a more permissive ceiling than the all-industry median."
+      />
+      <Card>
+        <OrgBenchmarkEditor
+          initial={overrides}
+          industries={distinctIndustries}
+          channels={distinctChannels.length > 0 ? distinctChannels : ["META", "GOOGLE", "INSTAGRAM", "YOUTUBE", "WHATSAPP", "LINKEDIN", "TWITTER", "EMAIL", "INFLUENCER", "EVENT"]}
+        />
+      </Card>
 
       <SectionHeader title="Add or update" description="Upsert by (industry, objective, channel, region)" />
 

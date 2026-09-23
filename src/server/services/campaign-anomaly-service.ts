@@ -14,6 +14,7 @@
 // "watch", or "scale".
 
 import { prisma } from "@/lib/db";
+import { OrgBenchmarkService } from "./org-benchmark";
 import { detectAnomalies } from "@/lib/analytics/anomaly-detection";
 
 export type Recommendation = "pause" | "watch" | "scale" | "none";
@@ -103,9 +104,22 @@ export const CampaignAnomalyService = {
         })
       : [];
     const benchByKey = new Map<string, { cplMax: number; cplMedian: number; industry: string }>();
+
+    // Sprint 17c — fetch org-level benchmark overrides and let them beat
+    // the global IndustryBenchmark. The Map is keyed by industry:channel
+    // so the existing logic still works without further changes.
+    const overridePairs = benchmarkRows.map((b) => ({
+      industry: b.industry,
+      channel: b.channel,
+      field: "cplMax" as const
+    }));
+    const overrideMap = await OrgBenchmarkService.getEffectiveBenchmarkMap(orgId, overridePairs);
+
     for (const b of benchmarkRows) {
-      benchByKey.set(`${b.industry}:${b.channel}`, {
-        cplMax: b.cplMax,
+      const k = `${b.industry}:${b.channel}`;
+      const maxOverride = overrideMap.get(`${b.industry}::${b.channel}::cplMax`);
+      benchByKey.set(k, {
+        cplMax: maxOverride?.overridden ? maxOverride.value : b.cplMax,
         cplMedian: b.cplMedian,
         industry: b.industry
       });
