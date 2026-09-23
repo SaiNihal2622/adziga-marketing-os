@@ -5,6 +5,7 @@ import { PageHeader } from "../../_components/page-header";
 import { KpiCard } from "../../_components/widgets";
 import { fmtINR, fmtPct, fmtDateTime, relTime } from "@/lib/format";
 import { RecommendForm } from "./recommend-form";
+import { MaterializeStrategyButton } from "./materialize-button";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,9 @@ export default async function StrategyIntelligencePage() {
                     {(r.confidence * 100).toFixed(0)}% conf
                   </span>
                   <span className="badge badge-neutral">{r.status}</span>
+                  {r.status === "PROPOSED" && r.clientId && (
+                    <MaterializeStrategyButton recommendationId={r.id} />
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">

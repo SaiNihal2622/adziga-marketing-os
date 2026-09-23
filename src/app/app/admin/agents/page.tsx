@@ -10,6 +10,8 @@ import { PageHeader } from "../../_components/page-header";
 import { Card, Kpi, SectionHeader, Badge } from "../../_components/ui";
 import { fmtNum, fmtRelative, fmtDateTime } from "@/lib/format";
 import Link from "next/link";
+import { AgentCostAlertService } from "@/server/services/agent-cost";
+import { CostLimitsEditor } from "./cost-limits-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +22,15 @@ export default async function AgentsObservabilityPage({
 }: {
   searchParams: { days?: string; agentId?: string };
 }) {
-  await requireRole([Role.FOUNDER, Role.ADMIN]);
+  const sessionInfo = await requireRole([Role.FOUNDER, Role.ADMIN]);
   const days = (DAY_OPTIONS as readonly number[]).includes(Number(searchParams.days))
     ? Number(searchParams.days)
     : 7;
   const since = new Date(Date.now() - days * 86_400_000);
   const agentFilter = searchParams.agentId;
+
+  // Sprint 18c — load any stored cost alerts to surface at top of page.
+  const costAlerts = await AgentCostAlertService.getStoredAlerts(sessionInfo.orgId);
 
   const [
     runs,
@@ -121,6 +126,43 @@ export default async function AgentsObservabilityPage({
         ))}
       </div>
 
+      {/* Sprint 18c — cost alerts banner */}
+      {costAlerts.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {costAlerts.map((a) => {
+            const isCritical = a.severity === "critical";
+            return (
+              <div
+                key={a.id}
+                className={`rounded-lg ring-1 p-3 ${
+                  isCritical ? "bg-rose-50 ring-rose-200" : "bg-amber-50 ring-amber-200"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-[11px] uppercase tracking-wide font-semibold ${isCritical ? "text-rose-700" : "text-amber-700"}`}>
+                      {a.severity} · agent_cost
+                    </div>
+                    <p className="text-sm text-ink-900 mt-1">{a.message}</p>
+                    <p className="text-[10px] text-ink-500 mt-1 font-mono">
+                      Raised {fmtRelative(new Date(a.raisedAt))} · threshold ₹{a.threshold.toFixed(0)} · observed ₹{a.observed.toFixed(0)}
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    <a
+                      href="/app/admin/agents"
+                      className="text-xs text-brand-600 hover:underline"
+                    >
+                      Tune policy →
+                    </a>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi label="Runs" value={fmtNum(Number(totalsRow.n))} hint={`last ${days} days`} />
@@ -161,6 +203,21 @@ export default async function AgentsObservabilityPage({
             </tbody>
           </table>
         </div>
+      </Card>
+
+      {/* Sprint 18c — Cost limits editor */}
+      <SectionHeader
+        title="LLM cost limits"
+        description="Daily / weekly thresholds that raise a banner on this page when crossed. Defaults: ₹200/day, ₹1000/week."
+      />
+      <Card padding="lg">
+        <CostLimitsEditor
+          initial={{
+            dailyLimit: Math.round(costEstimate * 10),
+            weeklyLimit: Math.round(costEstimate * 30),
+            enabled: true
+          }}
+        />
       </Card>
 
       {/* Tool usage */}
